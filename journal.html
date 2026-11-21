@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Explore Beenorax scholarly journals covering health, biomedical sciences, business analytics and data science.">
-<title>Journal | Beenorax</title>
+<meta name="description" content="Explore Beenorax Biomedical Journals and Beenorax Business Intelligence Journals.">
+<meta name="theme-color" content="#071f43">
+<title>Beenorax Journals</title>
 
 <style>
 :root{
@@ -71,29 +72,22 @@ color:#6ce1d3;
 font-weight:800
 }
 .hero h1{
-font-size:clamp(34px,5vw,54px);
+font-size:clamp(32px,5vw,50px);
 line-height:1.1;
 margin:10px 0
 }
 .hero p{
-max-width:800px;
+max-width:850px;
 color:#d7e5f1
 }
 .btn{
 display:inline-block;
-background:#00a99a;
-color:white;
-border:0;
+background:#e7f6f4;
+color:#087d75;
 border-radius:8px;
 padding:11px 16px;
-text-decoration:none;
 font-weight:800;
-cursor:pointer
-}
-.btn.alt{
-background:white;
-color:#071f43;
-border:1px solid #cbd7e1
+margin-top:12px
 }
 .section{padding:38px 0}
 .grid{
@@ -108,11 +102,10 @@ border-radius:15px;
 padding:24px;
 box-shadow:0 8px 28px #071f4309
 }
-.card h2{
+.card h2,.card h3{
 color:var(--navy);
-line-height:1.25
+line-height:1.3
 }
-.card h3{color:var(--navy)}
 .tag{
 font-size:11px;
 color:#087d75;
@@ -135,15 +128,6 @@ padding:10px 0;
 color:#087d75;
 min-height:24px
 }
-.pill{
-display:inline-block;
-padding:4px 9px;
-border-radius:20px;
-background:#e7f6f4;
-color:#087d75;
-font-size:11px;
-font-weight:800
-}
 .article{
 padding:16px 0;
 border-bottom:1px solid var(--line)
@@ -152,12 +136,24 @@ border-bottom:1px solid var(--line)
 margin:4px 0;
 color:var(--navy)
 }
-.article a{color:#087d75;font-weight:700}
+.article a{
+color:#087d75;
+font-weight:700
+}
 .policy-link{
 display:inline-block;
 margin-top:8px;
 color:#087d75;
 font-weight:800
+}
+.launch-notice{
+background:#fff8e8;
+border:1px solid #f0dfb5;
+border-radius:10px;
+padding:15px;
+margin-top:18px;
+color:#72551c;
+font-size:13px
 }
 @media(max-width:720px){
 .grid{grid-template-columns:1fr}
@@ -191,15 +187,24 @@ BEENORAX
 
 <section class="hero">
 <div class="wrap">
-<div class="eyebrow" id="code">BEENORAX JOURNAL</div>
 
-<h1 id="journalTitle">Journal</h1>
+<div class="eyebrow" id="code">BEENORAX JOURNALS</div>
 
-<p id="journalScope">Scholarly research and evidence.</p>
+<h1 id="journalTitle">Beenorax Journals</h1>
 
-<a class="btn" href="/manuscript.html" id="submitLink">
-Submit to this journal
-</a>
+<p id="journalScope">
+Scholarly research and evidence across biomedical sciences and business intelligence.
+</p>
+
+<span class="btn">Submissions opening soon</span>
+
+<div class="launch-notice">
+Our journals are currently being prepared for launch.
+Author registration, manuscript submission and editorial services
+will become available after the required systems and policies
+have been formally configured.
+</div>
+
 </div>
 </section>
 
@@ -221,11 +226,11 @@ Submit to this journal
 
 <p><b>Publication model:</b> Online, open access planned.</p>
 
-<p><b>Peer review:</b> Editorial peer-review workflow to be configured before launch.</p>
+<p><b>Peer review:</b> Peer-review workflow is being prepared for implementation before submissions open.</p>
 
 <p><b>Editorial independence:</b> Each journal will have its own Editor-in-Chief and editorial board.</p>
 
-<p><b>ISSN / DOI:</b> To be added only after official registration or assignment.</p>
+<p><b>ISSN / DOI:</b> To be displayed only after official registration or assignment.</p>
 
 <p><b>Publication frequency:</b> To be announced before publication begins.</p>
 
@@ -242,7 +247,8 @@ Read the Editorial and Publishing Policies →
 <h2>Article types</h2>
 
 <p class="muted">
-Subject to the journal's editorial requirements, the journals may consider:
+Subject to the relevant journal's editorial requirements,
+the journals may consider:
 </p>
 
 <ul class="list">
@@ -263,7 +269,7 @@ Subject to the journal's editorial requirements, the journals may consider:
 <h2>Published articles</h2>
 
 <p class="muted" id="articleNote">
-Published articles will appear here after the journal begins publication.
+Published articles will appear here after publication begins.
 </p>
 
 <div id="articles"></div>
@@ -282,21 +288,24 @@ Published articles will appear here after the journal begins publication.
 </footer>
 
 <script>
-(()=>{
+(() => {
+'use strict';
 
-const journals={
+const journals = {
 
-bjbs:{
+bjbs: {
 
-code:'BJBS',
+code: 'BBJ',
 
-title:'Beenorax Journal of Biomedical Sciences',
+title: 'Beenorax Biomedical Journals',
 
-scope:'One Journal. All Health and Biomedical Sciences. A multidisciplinary scholarly journal covering the full spectrum of health and biomedical research, from basic and applied sciences to clinical, translational and population health research.',
+scope:
+'One publishing division. All Health and Biomedical Sciences. A multidisciplinary scholarly publishing platform covering the full spectrum of health and biomedical research, from basic and applied sciences to clinical, translational and population health research.',
 
-aims:'The Beenorax Journal of Biomedical Sciences aims to provide a scholarly platform for the publication and dissemination of rigorous research across all areas of health and biomedical sciences. The journal welcomes basic, applied, clinical, translational and population health research that advances scientific knowledge, improves healthcare practice, supports innovation and contributes to evidence-informed health policy.',
+aims:
+'Beenorax Biomedical Journals aims to provide a scholarly platform for the publication and dissemination of rigorous research across all areas of health and biomedical sciences. It welcomes basic, applied, clinical, translational and population health research that advances scientific knowledge, improves healthcare practice, supports innovation and contributes to evidence-informed health policy.',
 
-topics:[
+topics: [
 
 'Medicine and clinical sciences, including medical and surgical specialties',
 
@@ -346,17 +355,19 @@ topics:[
 
 },
 
-bjba:{
+bjba: {
 
-code:'BJBA',
+code: 'BBIJ',
 
-title:'Beenorax Journal of Business Analytics',
+title: 'Beenorax Business Intelligence Journals',
 
-scope:'A multidisciplinary journal for applied and methodological research in business intelligence, data science and quantitative decision-making.',
+scope:
+'A multidisciplinary scholarly publishing platform for applied and methodological research in business intelligence, data science, analytics and quantitative decision-making.',
 
-aims:'The journal aims to publish robust analytical methods and applied research that improve organisational performance, business decisions, digital innovation and evidence-based management.',
+aims:
+'Beenorax Business Intelligence Journals aims to publish rigorous analytical methods and applied research that improve organisational performance, business decisions, digital innovation, economic understanding and evidence-based management.',
 
-topics:[
+topics: [
 
 'Business intelligence and data analytics',
 
@@ -376,7 +387,17 @@ topics:[
 
 'Information systems and digital transformation',
 
-'Risk analysis, governance and performance measurement'
+'Risk analysis, governance and performance measurement',
+
+'Business research methods and quantitative analysis',
+
+'Big data, data engineering and business applications',
+
+'Project management and operational research',
+
+'Financial technology and digital business',
+
+'Strategic management and performance analytics'
 
 ]
 
@@ -384,86 +405,107 @@ topics:[
 
 };
 
-const params=new URLSearchParams(location.search);
-const key=params.get('journal')||'bjbs';
-const j=journals[key]||journals.bjbs;
+const params = new URLSearchParams(location.search);
+const key = params.get('journal') || 'bjbs';
+const journal = journals[key] || journals.bjbs;
 
-document.title=j.title+' | Beenorax';
+document.title = journal.title + ' | Beenorax';
 
-document.getElementById('code').textContent=j.code;
+document.getElementById('code').textContent = journal.code;
 
-document.getElementById('journalTitle').textContent=j.title;
+document.getElementById('journalTitle').textContent =
+journal.title;
 
-document.getElementById('journalScope').textContent=j.scope;
+document.getElementById('journalScope').textContent =
+journal.scope;
 
-document.getElementById('aims').textContent=j.aims;
+document.getElementById('aims').textContent =
+journal.aims;
 
-document.getElementById('topics').innerHTML=
-j.topics.map(x=>'<li>'+safe(x)+'</li>').join('');
-
-document.getElementById('submitLink').href=
-'/manuscript.html?journal='+encodeURIComponent(key);
+document.getElementById('topics').innerHTML =
+journal.topics.map(topic =>
+'<li>' + safe(topic) + '</li>'
+).join('');
 
 
 /* Published articles */
 
-const cfg=window.BEENORAX_AUTH_CONFIG||{};
+const cfg = window.BEENORAX_AUTH_CONFIG || {};
 
-if(
-window.supabase&&
-cfg.supabaseUrl&&
-!cfg.supabaseUrl.includes('YOUR_PROJECT')&&
-cfg.supabaseAnonKey&&
-!cfg.supabaseAnonKey.includes('YOUR_')
-){
+if (
+window.supabase &&
+cfg.supabaseUrl &&
+cfg.supabaseAnonKey
+) {
 
-const sb=window.supabase.createClient(
+const sb = window.supabase.createClient(
 cfg.supabaseUrl,
 cfg.supabaseAnonKey
 );
 
 sb.from('journal_articles')
-.select('id,title,authors,abstract,doi,published_at,article_url')
-.eq('journal_code',key)
-.eq('status','published')
-.order('published_at',{ascending:false})
+.select(
+'id,title,authors,abstract,doi,published_at,article_url'
+)
+.eq('journal_code', key)
+.eq('status', 'published')
+.order('published_at', { ascending: false })
 
-.then(({data,error})=>{
+.then(({ data, error }) => {
 
-if(error||!data?.length)return;
+if (error) {
 
-document.getElementById('articleNote').textContent=
+console.error('Article retrieval failed:', error);
+
+document.getElementById('articleNote').textContent =
+'Published articles are temporarily unavailable.';
+
+return;
+
+}
+
+if (!data || !data.length) return;
+
+document.getElementById('articleNote').textContent =
 'Published articles';
 
-document.getElementById('articles').innerHTML=
-data.map(a=>{
+document.getElementById('articles').innerHTML =
+data.map(article => {
 
-const articleDate=a.published_at?
-new Date(a.published_at).toLocaleDateString():
-'';
+const date = article.published_at
+? new Date(article.published_at).toLocaleDateString()
+: '';
 
-const articleLink=validArticleUrl(a.article_url);
+const articleLink =
+validArticleUrl(article.article_url);
 
 return `
 
 <article class="article">
 
-<div class="tag">${safe(articleDate)}</div>
+<div class="tag">${safe(date)}</div>
 
-<h3>${safe(a.title)}</h3>
+<h3>${safe(article.title)}</h3>
 
 <p class="muted">
-${safe(Array.isArray(a.authors)?a.authors.join('; '):a.authors||'')}
+${safe(
+Array.isArray(article.authors)
+? article.authors.join('; ')
+: article.authors || ''
+)}
 </p>
 
-<p>${safe(a.abstract||'')}</p>
+<p>${safe(article.abstract || '')}</p>
 
-${a.doi?
-'<p>DOI: '+safe(a.doi)+'</p>':''
+${article.doi
+? '<p>DOI: ' + safe(article.doi) + '</p>'
+: ''
 }
 
-${articleLink?
-'<a href="'+safe(articleLink)+'" target="_blank" rel="noopener noreferrer">Read article →</a>':''
+${articleLink
+? '<a href="' + safe(articleLink) +
+'" target="_blank" rel="noopener noreferrer">Read article →</a>'
+: ''
 }
 
 </article>
@@ -479,33 +521,38 @@ ${articleLink?
 
 /* Text and URL safety */
 
-function safe(value){
+function safe(value) {
 
-return String(value||'').replace(/[&<>"']/g,c=>({
+return String(value || '').replace(/[&<>"']/g, char => ({
 
-'&':'&amp;',
-'<':'&lt;',
-'>':'&gt;',
-'"':'&quot;',
-"'":'&#39;'
+'&': '&amp;',
+'<': '&lt;',
+'>': '&gt;',
+'"': '&quot;',
+"'": '&#39;'
 
-}[c]));
+}[char]));
 
 }
 
-function validArticleUrl(value){
+function validArticleUrl(value) {
 
-try{
+try {
 
-const url=new URL(value,location.origin);
+if (!value) return '';
 
-if(url.protocol!=='https:'&&url.protocol!=='http:'){
+const url = new URL(value, location.origin);
+
+if (
+url.protocol !== 'https:' &&
+url.protocol !== 'http:'
+) {
 return '';
 }
 
 return url.href;
 
-}catch{
+} catch {
 
 return '';
 
