@@ -1,0 +1,21 @@
+BEENORAX FINAL PACKAGE - AUTHENTICATION ADDITION
+
+Added:
+- Supabase Auth registration and login screen.
+- Registration fields for name, organisation and requested account type.
+- Email confirmation requirement before workspace entry.
+- Password reset email flow and password update page.
+- Secure HttpOnly session cookie created only after server-side JWT verification.
+- Netlify Edge Function gate on /workspace.html.
+- Profile table and signup trigger with least-privilege default role.
+- Server-side administrator check and protected account-management endpoint.
+- Admin interface to review users, assign roles, suspend and restore accounts.
+- Setup documentation and Supabase SQL bootstrap.
+
+Security notes:
+- Public site remains accessible without registration.
+- Workspace requires a verified Supabase session.
+- New accounts default to general_user; requested account type does not grant permissions.
+- Service-role key remains server-side in Netlify environment variables.
+- First administrator must be promoted manually in Supabase SQL Editor.
+- Authentication cannot be activated until the deployment owner configures Supabase project credentials and Netlify environment variables.

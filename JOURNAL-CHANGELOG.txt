@@ -1,0 +1,7 @@
+Updated journal identities throughout the publishing module:
+- BJBS: Beenorax Journal of Biomedical Sciences (internal code: bjbs)
+- BJBA: Beenorax Journal of Business Analytics (internal code: bjba)
+
+Added the missing Supabase publishing schema to supabase-setup.sql, including journal memberships, submissions, reviewer assignments, reviews, editorial decisions, published article metadata, RLS policies, and private manuscript storage configuration.
+
+The two journals retain separate journal-specific editorial roles and submission queues on one shared platform. Supabase configuration, live authentication, email delivery, storage permissions, and end-to-end editorial workflow still require deployment testing before launch.
