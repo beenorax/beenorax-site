@@ -1,4 +1,1 @@
-window.BEENORAX_AUTH_CONFIG = {
-  supabaseUrl: 'https://qfoumwlhqduwdicjrbpp.supabase.co',
-  supabaseAnonKey: 'YOUR_PUBLISHABLE_KEY'
-};
+sb_publishable_XceluqP3KXKnyXk8FCwMdg_iYHtUjsP
