@@ -170,3 +170,13 @@ exports.handler = async event => {
     });
   }
 };
+  } catch (error) {
+    console.error('Journal access diagnostic:', {
+      message: error.message
+    });
+
+    return json(500, {
+      error: 'Unable to verify journal access.',
+      diagnostic_message: error.message
+    });
+  }
