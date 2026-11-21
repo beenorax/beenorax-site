@@ -1,9 +1,12 @@
 [build]
-  publish = "."
+publish = "."
+
+[build.environment]
+SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SECRETS_SCAN_OMIT_PATHS"
 
 [functions]
-  directory = "netlify/functions"
+directory = "netlify/functions"
 
 [[edge_functions]]
-  function = "workspace-guard"
-  path = "/workspace.html"
+function = "workspace-guard"
+path = "/workspace.html"
