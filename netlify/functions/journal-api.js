@@ -7,103 +7,264 @@ const json = (statusCode, data) => ({
   body: JSON.stringify(data)
 });
 
-const base = () => String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const base = () =>
+  String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+
 const anon = () => process.env.SUPABASE_ANON_KEY || '';
 const service = () => process.env.SUPABASE_SECRET_KEY || '';
 
-// Use the new secret key through the apikey header only.
+const JOURNALS = ['bjbs', 'bjba'];
+
+const EDITOR_ROLES = [
+  'editor_in_chief',
+  'associate_editor',
+  'journal_admin'
+];
+
+const REVIEWER_ROLES = ['reviewer'];
+
+const ALLOWED_RECOMMENDATIONS = [
+  'accept',
+  'minor_revision',
+  'major_revision',
+  'reject'
+];
+
+/*
+ * Supabase REST requests using the configured secret API key.
+ * Do not expose this key to the browser.
+ */
 async function rest(path, options = {}) {
+  const headers = {
+    apikey: service(),
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
   return fetch(base() + path, {
     ...options,
-    headers: {
-      apikey: service(),
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
+    headers
   });
 }
 
-// Verify the user's actual Supabase session.
+/*
+ * Verify the user's real Supabase access token.
+ */
 async function authenticate(event) {
-  const h = event.headers?.authorization ||
-            event.headers?.Authorization || '';
+  const headers = event.headers || {};
 
-  const token = h.replace(/^Bearer\s+/i, '');
+  const authorization =
+    headers.authorization ||
+    headers.Authorization ||
+    '';
 
-  if (!token || !base() || !anon() || !service()) return null;
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
 
-  const r = await fetch(base() + '/auth/v1/user', {
+  if (!match || !base() || !anon() || !service()) {
+    return null;
+  }
+
+  const response = await fetch(base() + '/auth/v1/user', {
     headers: {
       apikey: anon(),
-      Authorization: 'Bearer ' + token
+      Authorization: 'Bearer ' + match[1]
     }
   });
 
-  if (!r.ok) return null;
+  if (!response.ok) {
+    return null;
+  }
 
-  const user = await r.json();
+  const user = await response.json();
 
-  if (!user.email_confirmed_at) return null;
+  if (!user.id || !user.email_confirmed_at) {
+    return null;
+  }
 
   return user;
 }
 
+/*
+ * Check active journal membership and role.
+ */
 async function membership(userId, journalCode, roles) {
-  const q = `/rest/v1/journal_memberships?user_id=eq.${encodeURIComponent(userId)}&journal_code=eq.${encodeURIComponent(journalCode)}&active=eq.true&select=role`;
+  if (!JOURNALS.includes(journalCode)) {
+    return false;
+  }
 
-  const r = await rest(q);
+  const query =
+    '/rest/v1/journal_memberships' +
+    '?user_id=eq.' + encodeURIComponent(userId) +
+    '&journal_code=eq.' + encodeURIComponent(journalCode) +
+    '&active=eq.true' +
+    '&select=role';
 
-  if (!r.ok) return false;
+  const response = await rest(query);
 
-  const rows = await r.json();
+  if (!response.ok) {
+    throw new Error('membership_lookup_failed');
+  }
 
-  return rows.some(x => roles.includes(x.role));
+  const rows = await response.json();
+
+  return rows.some(row => roles.includes(row.role));
 }
 
+/*
+ * Check platform administrator.
+ */
 async function platformAdmin(userId) {
-  const r = await rest(
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role&limit=1`
+  const response = await rest(
+    '/rest/v1/profiles' +
+    '?id=eq.' + encodeURIComponent(userId) +
+    '&select=role&limit=1'
   );
 
-  if (!r.ok) return false;
+  if (!response.ok) {
+    throw new Error('admin_lookup_failed');
+  }
 
-  const a = await r.json();
+  const rows = await response.json();
 
-  return a[0]?.role === 'admin';
+  return rows[0]?.role === 'admin';
 }
 
-async function bodyOf(e) {
+/*
+ * Parse request body.
+ */
+async function bodyOf(event) {
   try {
-    return JSON.parse(e.body || '{}');
+    return JSON.parse(event.body || '{}');
   } catch {
     return null;
   }
 }
 
-// Generate a temporary manuscript download URL.
+/*
+ * Validate storage paths before generating signed URLs.
+ */
+function validStoragePath(filePath) {
+  if (typeof filePath !== 'string') {
+    return false;
+  }
+
+  if (
+    filePath.length > 500 ||
+    filePath.startsWith('/') ||
+    filePath.includes('\\') ||
+    filePath.includes('..') ||
+    filePath.includes('//')
+  ) {
+    return false;
+  }
+
+  const parts = filePath.split('/');
+
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [userId, filename] = parts;
+
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  return (
+    uuidPattern.test(userId) &&
+    /^[a-zA-Z0-9._-]+$/.test(filename) &&
+    /\.(pdf|docx)$/i.test(filename)
+  );
+}
+
+/*
+ * Generate a temporary private manuscript download URL.
+ */
 async function signedDownload(filePath) {
-  const r = await fetch(
-    base() + '/storage/v1/object/sign/journal-manuscripts/' + filePath,
+  if (!validStoragePath(filePath)) {
+    return null;
+  }
+
+  const encodedPath = filePath
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/');
+
+  const response = await fetch(
+    base() +
+    '/storage/v1/object/sign/journal-manuscripts/' +
+    encodedPath,
     {
       method: 'POST',
       headers: {
         apikey: service(),
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ expiresIn: 600 })
+      body: JSON.stringify({
+        expiresIn: 600
+      })
     }
   );
 
-  if (!r.ok) return null;
+  if (!response.ok) {
+    return null;
+  }
 
-  const d = await r.json();
+  const data = await response.json();
 
-  return base() + '/storage/v1' + d.signedURL;
+  if (!data.signedURL) {
+    return null;
+  }
+
+  if (data.signedURL.startsWith('https://')) {
+    return data.signedURL;
+  }
+
+  return base() + '/storage/v1' + data.signedURL;
 }
 
-exports.handler = async (event) => {
+/*
+ * Confirm that an editor has access to a journal.
+ */
+async function editorAccess(userId, journalCode, roles = EDITOR_ROLES) {
+  if (!JOURNALS.includes(journalCode)) {
+    return false;
+  }
+
+  if (await platformAdmin(userId)) {
+    return true;
+  }
+
+  return membership(userId, journalCode, roles);
+}
+
+/*
+ * Load a submission by ID.
+ */
+async function getSubmission(submissionId) {
+  const response = await rest(
+    '/rest/v1/journal_submissions' +
+    '?id=eq.' + encodeURIComponent(submissionId) +
+    '&select=*'
+  );
+
+  if (!response.ok) {
+    throw new Error('submission_lookup_failed');
+  }
+
+  const rows = await response.json();
+
+  return rows[0] || null;
+}
+
+/*
+ * Main Netlify function.
+ */
+exports.handler = async event => {
+
   if (event.httpMethod !== 'POST') {
-    return json(405, { error: 'method_not_allowed' });
+    return json(405, {
+      error: 'method_not_allowed'
+    });
   }
 
   if (!base() || !anon() || !service()) {
@@ -117,79 +278,107 @@ exports.handler = async (event) => {
   try {
     user = await authenticate(event);
   } catch {
-    return json(503, { error: 'authentication_unavailable' });
+    return json(503, {
+      error: 'authentication_unavailable'
+    });
   }
 
   if (!user) {
-    return json(401, { error: 'verified_login_required' });
+    return json(401, {
+      error: 'verified_login_required'
+    });
   }
 
   const b = await bodyOf(event);
 
   if (!b || typeof b.action !== 'string') {
-    return json(400, { error: 'invalid_request' });
+    return json(400, {
+      error: 'invalid_request'
+    });
   }
 
   const action = b.action;
 
   try {
 
-    // 1. MANUSCRIPT SUBMISSION
+    /*
+     * 1. MANUSCRIPT SUBMISSION
+     */
     if (action === 'submit') {
+
       const code = b.journal_code;
 
       if (
-        !['bjbs', 'bjba'].includes(code) ||
+        !JOURNALS.includes(code) ||
         typeof b.title !== 'string' ||
         b.title.trim().length < 8 ||
-        b.title.length > 300 ||
+        b.title.trim().length > 300 ||
         typeof b.authors_text !== 'string' ||
+        b.authors_text.trim().length < 2 ||
         b.authors_text.length > 5000 ||
         typeof b.abstract !== 'string' ||
         b.abstract.trim().length < 30 ||
         b.abstract.length > 5000 ||
-        typeof b.file_path !== 'string' ||
+        !validStoragePath(b.file_path) ||
         !b.file_path.startsWith(user.id + '/') ||
         typeof b.file_name !== 'string' ||
-        !(/\.(pdf|docx)$/i).test(b.file_name)
+        b.file_name.length > 255 ||
+        !/\.(pdf|docx)$/i.test(b.file_name)
       ) {
         return json(400, {
           error: 'invalid_submission_fields'
         });
       }
 
+      const keywords = Array.isArray(b.keywords)
+        ? b.keywords
+            .filter(x => typeof x === 'string')
+            .map(x => x.trim())
+            .filter(Boolean)
+            .slice(0, 20)
+        : [];
+
       const reference =
-        'BNX-' + code.toUpperCase() + '-' +
+        'BNX-' +
+        code.toUpperCase() +
+        '-' +
         Date.now().toString(36).toUpperCase();
 
-      const r = await rest('/rest/v1/journal_submissions', {
-        method: 'POST',
-        headers: {
-          Prefer: 'return=representation'
-        },
-        body: JSON.stringify({
-          reference_code: reference,
-          journal_code: code,
-          author_id: user.id,
-          title: b.title.trim(),
-          authors_text: b.authors_text,
-          abstract: b.abstract,
-          keywords: Array.isArray(b.keywords)
-            ? b.keywords.slice(0, 20)
-            : [],
-          file_path: b.file_path,
-          file_name: b.file_name,
-          status: 'submitted'
-        })
-      });
+      const response = await rest(
+        '/rest/v1/journal_submissions',
+        {
+          method: 'POST',
+          headers: {
+            Prefer: 'return=representation'
+          },
+          body: JSON.stringify({
+            reference_code: reference,
+            journal_code: code,
+            author_id: user.id,
+            title: b.title.trim(),
+            authors_text: b.authors_text.trim(),
+            abstract: b.abstract.trim(),
+            keywords,
+            file_path: b.file_path,
+            file_name: b.file_name,
+            status: 'submitted'
+          })
+        }
+      );
 
-      if (!r.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'submission_save_failed'
         });
       }
 
-      const rows = await r.json();
+      const rows = await response.json();
+
+      if (!rows.length) {
+        return json(502, {
+          error: 'submission_confirmation_failed'
+        });
+      }
 
       return json(201, {
         submission: {
@@ -200,48 +389,67 @@ exports.handler = async (event) => {
       });
     }
 
-    // 2. AUTHOR SUBMISSION HISTORY
+    /*
+     * 2. AUTHOR SUBMISSION HISTORY
+     */
     if (action === 'my_submissions') {
-      const r = await rest(
-        `/rest/v1/journal_submissions?author_id=eq.${encodeURIComponent(user.id)}&select=id,reference_code,journal_code,title,status,submitted_at&order=submitted_at.desc`
+
+      const response = await rest(
+        '/rest/v1/journal_submissions' +
+        '?author_id=eq.' + encodeURIComponent(user.id) +
+        '&select=id,reference_code,journal_code,title,status,submitted_at' +
+        '&order=submitted_at.desc'
       );
 
-      if (!r.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'submission_list_failed'
         });
       }
 
       return json(200, {
-        submissions: await r.json()
+        submissions: await response.json()
       });
     }
 
-    // 3. EDITOR QUEUE
+    /*
+     * 3. EDITOR QUEUE
+     */
     if (action === 'editor_queue') {
-      const isAdmin = await platformAdmin(user.id);
 
       let codes = [];
 
+      const isAdmin = await platformAdmin(user.id);
+
       if (isAdmin) {
-        codes = ['bjbs', 'bjba'];
+
+        codes = [...JOURNALS];
+
       } else {
-        const r = await rest(
-          `/rest/v1/journal_memberships?user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&select=journal_code,role`
+
+        const response = await rest(
+          '/rest/v1/journal_memberships' +
+          '?user_id=eq.' + encodeURIComponent(user.id) +
+          '&active=eq.true' +
+          '&select=journal_code,role'
         );
 
-        if (!r.ok) {
+        if (!response.ok) {
           return json(502, {
             error: 'membership_lookup_failed'
           });
         }
 
-        codes = (await r.json())
-          .filter(x =>
-            ['editor_in_chief', 'associate_editor', 'journal_admin']
-              .includes(x.role)
+        codes = [
+          ...new Set(
+            (await response.json())
+              .filter(row =>
+                EDITOR_ROLES.includes(row.role) &&
+                JOURNALS.includes(row.journal_code)
+              )
+              .map(row => row.journal_code)
           )
-          .map(x => x.journal_code);
+        ];
       }
 
       if (!codes.length) {
@@ -250,124 +458,148 @@ exports.handler = async (event) => {
         });
       }
 
-      const r = await rest(
-        `/rest/v1/journal_submissions?journal_code=in.(${codes.join(',')})&status=not.in.(published,withdrawn)&select=id,reference_code,journal_code,title,abstract,status,file_path,submitted_at&order=submitted_at.asc`
+      const response = await rest(
+        '/rest/v1/journal_submissions' +
+        '?journal_code=in.(' + codes.join(',') + ')' +
+        '&status=not.in.(published,withdrawn)' +
+        '&select=id,reference_code,journal_code,title,abstract,status,file_path,submitted_at' +
+        '&order=submitted_at.asc'
       );
 
-      if (!r.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'editor_queue_failed'
         });
       }
 
-      const rows = await r.json();
+      const submissions = await response.json();
 
-      for (const row of rows) {
-        row.download_url = await signedDownload(row.file_path);
+      for (const submission of submissions) {
+        submission.download_url =
+          await signedDownload(submission.file_path);
       }
 
       return json(200, {
-        submissions: rows
+        submissions
       });
     }
 
-    // 4. REVIEWER QUEUE
+    /*
+     * 4. REVIEWER QUEUE
+     */
     if (action === 'reviewer_queue') {
-      const r = await rest(
-        `/rest/v1/journal_reviewer_assignments?reviewer_id=eq.${encodeURIComponent(user.id)}&select=id,submission_id,status,journal_submissions(id,reference_code,journal_code,title,abstract,status,file_path)&order=created_at.desc`
+
+      const response = await rest(
+        '/rest/v1/journal_reviewer_assignments' +
+        '?reviewer_id=eq.' + encodeURIComponent(user.id) +
+        '&select=id,submission_id,status,created_at,' +
+        'journal_submissions(id,reference_code,journal_code,title,abstract,status,file_path)' +
+        '&order=created_at.desc'
       );
 
-      if (!r.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'reviewer_queue_failed'
         });
       }
 
-      const assignments = await r.json();
+      const assignments = await response.json();
 
-      for (const a of assignments) {
-        const s = a.journal_submissions;
+      const verifiedAssignments = [];
 
-        if (s?.file_path) {
-          a.download_url = await signedDownload(s.file_path);
+      for (const assignment of assignments) {
+
+        const submission = assignment.journal_submissions;
+
+        if (!submission) {
+          continue;
         }
+
+        if (!JOURNALS.includes(submission.journal_code)) {
+          continue;
+        }
+
+        const activeReviewer = await membership(
+          user.id,
+          submission.journal_code,
+          REVIEWER_ROLES
+        );
+
+        if (!activeReviewer) {
+          continue;
+        }
+
+        if (submission.file_path) {
+          assignment.download_url =
+            await signedDownload(submission.file_path);
+        }
+
+        verifiedAssignments.push(assignment);
       }
 
       return json(200, {
-        assignments
+        assignments: verifiedAssignments
       });
     }
 
-    // 5. LIST JOURNAL REVIEWERS
+    /*
+     * 5. LIST JOURNAL REVIEWERS
+     */
     if (action === 'list_reviewers') {
-      if (!['bjbs', 'bjba'].includes(b.journal_code)) {
+
+      if (!JOURNALS.includes(b.journal_code)) {
         return json(400, {
           error: 'invalid_journal'
         });
       }
 
-      if (
-        !(await platformAdmin(user.id)) &&
-        !(await membership(
-          user.id,
-          b.journal_code,
-          ['editor_in_chief', 'associate_editor', 'journal_admin']
-        ))
-      ) {
+      const allowed = await editorAccess(
+        user.id,
+        b.journal_code
+      );
+
+      if (!allowed) {
         return json(403, {
           error: 'journal_editor_access_required'
         });
       }
 
-      const mr = await rest(
-        `/rest/v1/journal_memberships?journal_code=eq.${b.journal_code}&role=eq.reviewer&active=eq.true&select=user_id`
+      const response = await rest(
+        '/rest/v1/journal_memberships' +
+        '?journal_code=eq.' + encodeURIComponent(b.journal_code) +
+        '&role=eq.reviewer' +
+        '&active=eq.true' +
+        '&select=user_id'
       );
 
-      if (!mr.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'reviewer_list_failed'
         });
       }
 
-      const ids = (await mr.json()).map(x => x.user_id);
+      const reviewers = await response.json();
 
-      if (!ids.length) {
-        return json(200, { reviewers: [] });
-      }
-
-      const ur = await fetch(
-        base() + '/auth/v1/admin/users?page=1&per_page=200',
-        {
-          headers: {
-            apikey: service()
-          }
-        }
-      );
-
-      if (!ur.ok) {
-        return json(502, {
-          error: 'reviewer_account_lookup_failed'
-        });
-      }
-
-      const users = await ur.json();
-
+      /*
+       * Return membership IDs only.
+       * Do not expose the Supabase Auth admin endpoint or
+       * retrieve all registered account emails for this action.
+       */
       return json(200, {
-        reviewers: (users.users || [])
-          .filter(x => ids.includes(x.id))
-          .map(x => ({
-            id: x.id,
-            email: x.email
-          }))
+        reviewers: reviewers.map(row => ({
+          id: row.user_id
+        }))
       });
     }
 
-    // 6. SUBMIT PEER REVIEW
+    /*
+     * 6. SUBMIT PEER REVIEW
+     */
     if (action === 'submit_review') {
+
       if (
         typeof b.assignment_id !== 'string' ||
-        !['accept', 'minor_revision', 'major_revision', 'reject']
-          .includes(b.recommendation) ||
+        !ALLOWED_RECOMMENDATIONS.includes(b.recommendation) ||
         typeof b.author_comments !== 'string' ||
         b.author_comments.length > 8000 ||
         typeof b.confidential_comments !== 'string' ||
@@ -378,52 +610,121 @@ exports.handler = async (event) => {
         });
       }
 
-      const q = await rest(
-        `/rest/v1/journal_reviewer_assignments?id=eq.${encodeURIComponent(b.assignment_id)}&reviewer_id=eq.${encodeURIComponent(user.id)}&select=id,status,submission_id`
+      const response = await rest(
+        '/rest/v1/journal_reviewer_assignments' +
+        '?id=eq.' + encodeURIComponent(b.assignment_id) +
+        '&reviewer_id=eq.' + encodeURIComponent(user.id) +
+        '&select=id,status,submission_id'
       );
 
-      if (!q.ok) {
+      if (!response.ok) {
         return json(502, {
           error: 'assignment_lookup_failed'
         });
       }
 
-      const rows = await q.json();
+      const assignments = await response.json();
 
-      if (!rows.length) {
+      if (!assignments.length) {
         return json(403, {
           error: 'review_assignment_required'
         });
       }
 
-      const a = rows[0];
+      const assignment = assignments[0];
 
-      if (a.status === 'completed') {
+      if (assignment.status === 'completed') {
         return json(409, {
           error: 'review_already_completed'
         });
       }
 
-      const ins = await rest('/rest/v1/journal_reviews', {
-        method: 'POST',
-        body: JSON.stringify({
-          assignment_id: a.id,
-          recommendation: b.recommendation,
-          author_comments: b.author_comments,
-          confidential_comments: b.confidential_comments
-        })
-      });
+      if (
+        !['invited', 'accepted', 'in_progress'].includes(
+          assignment.status
+        )
+      ) {
+        return json(403, {
+          error: 'assignment_not_available'
+        });
+      }
 
-      if (!ins.ok) {
+      const submission = await getSubmission(
+        assignment.submission_id
+      );
+
+      if (!submission) {
+        return json(404, {
+          error: 'submission_not_found'
+        });
+      }
+
+      const activeReviewer = await membership(
+        user.id,
+        submission.journal_code,
+        REVIEWER_ROLES
+      );
+
+      if (!activeReviewer) {
+        return json(403, {
+          error: 'active_reviewer_appointment_required'
+        });
+      }
+
+      /*
+       * Prevent a second review for the same assignment.
+       * A database unique constraint is also recommended.
+       */
+      const existing = await rest(
+        '/rest/v1/journal_reviews' +
+        '?assignment_id=eq.' + encodeURIComponent(assignment.id) +
+        '&select=id&limit=1'
+      );
+
+      if (!existing.ok) {
+        return json(502, {
+          error: 'review_check_failed'
+        });
+      }
+
+      if ((await existing.json()).length) {
+        return json(409, {
+          error: 'review_already_submitted'
+        });
+      }
+
+      const insert = await rest(
+        '/rest/v1/journal_reviews',
+        {
+          method: 'POST',
+          headers: {
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            assignment_id: assignment.id,
+            recommendation: b.recommendation,
+            author_comments: b.author_comments,
+            confidential_comments: b.confidential_comments
+          })
+        }
+      );
+
+      if (!insert.ok) {
         return json(502, {
           error: 'review_save_failed'
         });
       }
 
       const update = await rest(
-        `/rest/v1/journal_reviewer_assignments?id=eq.${encodeURIComponent(a.id)}`,
+        '/rest/v1/journal_reviewer_assignments' +
+        '?id=eq.' + encodeURIComponent(assignment.id) +
+        '&reviewer_id=eq.' + encodeURIComponent(user.id) +
+        '&status=neq.completed',
         {
           method: 'PATCH',
+          headers: {
+            Prefer: 'return=representation'
+          },
           body: JSON.stringify({
             status: 'completed'
           })
@@ -436,11 +737,16 @@ exports.handler = async (event) => {
         });
       }
 
-      return json(200, { ok: true });
+      return json(200, {
+        ok: true
+      });
     }
 
-    // 7. ASSIGN REVIEWER
+    /*
+     * 7. ASSIGN REVIEWER
+     */
     if (action === 'assign_reviewer') {
+
       if (
         typeof b.submission_id !== 'string' ||
         typeof b.reviewer_id !== 'string'
@@ -450,33 +756,19 @@ exports.handler = async (event) => {
         });
       }
 
-      const q = await rest(
-        `/rest/v1/journal_submissions?id=eq.${encodeURIComponent(b.submission_id)}&select=id,journal_code`
-      );
+      const submission = await getSubmission(b.submission_id);
 
-      if (!q.ok) {
-        return json(502, {
-          error: 'submission_lookup_failed'
-        });
-      }
-
-      const rows = await q.json();
-
-      if (!rows.length) {
+      if (!submission) {
         return json(404, {
           error: 'submission_not_found'
         });
       }
 
-      const sub = rows[0];
-
       if (
-        !(await platformAdmin(user.id)) &&
-        !(await membership(
+        !await editorAccess(
           user.id,
-          sub.journal_code,
-          ['editor_in_chief', 'associate_editor', 'journal_admin']
-        ))
+          submission.journal_code
+        )
       ) {
         return json(403, {
           error: 'journal_editor_access_required'
@@ -484,127 +776,221 @@ exports.handler = async (event) => {
       }
 
       if (
-        !(await membership(
+        !await membership(
           b.reviewer_id,
-          sub.journal_code,
-          ['reviewer']
-        ))
+          submission.journal_code,
+          REVIEWER_ROLES
+        )
       ) {
         return json(400, {
           error: 'reviewer_not_appointed_to_this_journal'
         });
       }
 
-      const ins = await rest(
+      if (
+        ['published', 'withdrawn', 'rejected'].includes(
+          submission.status
+        )
+      ) {
+        return json(409, {
+          error: 'submission_not_available_for_review'
+        });
+      }
+
+      const existing = await rest(
+        '/rest/v1/journal_reviewer_assignments' +
+        '?submission_id=eq.' + encodeURIComponent(submission.id) +
+        '&reviewer_id=eq.' + encodeURIComponent(b.reviewer_id) +
+        '&select=id,status&limit=1'
+      );
+
+      if (!existing.ok) {
+        return json(502, {
+          error: 'assignment_check_failed'
+        });
+      }
+
+      if ((await existing.json()).length) {
+        return json(409, {
+          error: 'reviewer_already_assigned'
+        });
+      }
+
+      const insert = await rest(
         '/rest/v1/journal_reviewer_assignments',
         {
           method: 'POST',
+          headers: {
+            Prefer: 'return=representation'
+          },
           body: JSON.stringify({
-            submission_id: sub.id,
+            submission_id: submission.id,
             reviewer_id: b.reviewer_id,
             status: 'invited'
           })
         }
       );
 
-      if (!ins.ok) {
+      if (!insert.ok) {
         return json(502, {
           error: 'reviewer_assignment_failed'
         });
       }
 
-      return json(200, { ok: true });
+      return json(201, {
+        ok: true
+      });
     }
 
-    // 8. PUBLISH ARTICLE
+    /*
+     * 8. PUBLISH ARTICLE
+     */
     if (action === 'publish_article') {
+
       if (
         typeof b.submission_id !== 'string' ||
-        typeof b.doi !== 'string' ||
-        b.doi.length > 200 ||
-        typeof b.article_url !== 'string' ||
-        b.article_url.length > 1000
+        (b.doi !== undefined &&
+          b.doi !== null &&
+          typeof b.doi !== 'string') ||
+        (b.article_url !== undefined &&
+          b.article_url !== null &&
+          typeof b.article_url !== 'string') ||
+        (b.doi || '').length > 200 ||
+        (b.article_url || '').length > 1000
       ) {
         return json(400, {
           error: 'invalid_publication'
         });
       }
 
-      const q = await rest(
-        `/rest/v1/journal_submissions?id=eq.${encodeURIComponent(b.submission_id)}&select=*`
-      );
+      const submission = await getSubmission(b.submission_id);
 
-      if (!q.ok) {
-        return json(502, {
-          error: 'submission_lookup_failed'
-        });
-      }
-
-      const rows = await q.json();
-
-      if (!rows.length) {
+      if (!submission) {
         return json(404, {
           error: 'submission_not_found'
         });
       }
 
-      const sub = rows[0];
-
-      if (sub.status !== 'accepted') {
+      if (submission.status !== 'accepted') {
         return json(400, {
           error: 'only_accepted_manuscripts_can_be_published'
         });
       }
 
       if (
-        !(await platformAdmin(user.id)) &&
-        !(await membership(
+        !await editorAccess(
           user.id,
-          sub.journal_code,
+          submission.journal_code,
           ['editor_in_chief', 'journal_admin']
-        ))
+        )
       ) {
         return json(403, {
           error: 'editor_in_chief_access_required'
         });
       }
 
-      const authors = sub.authors_text
+      const articleUrl = b.article_url
+        ? b.article_url.trim()
+        : null;
+
+      if (articleUrl) {
+        try {
+          const parsed = new URL(articleUrl);
+
+          if (parsed.protocol !== 'https:') {
+            throw new Error('invalid_url');
+          }
+        } catch {
+          return json(400, {
+            error: 'article_url_must_be_valid_https_url'
+          });
+        }
+      }
+
+      const doi = b.doi
+        ? b.doi.trim()
+        : null;
+
+      if (
+        doi &&
+        !/^10\.\d{4,9}\/\S+$/i.test(doi)
+      ) {
+        return json(400, {
+          error: 'invalid_doi_format'
+        });
+      }
+
+      /*
+       * Prevent duplicate publication records.
+       */
+      const existing = await rest(
+        '/rest/v1/journal_articles' +
+        '?submission_id=eq.' + encodeURIComponent(submission.id) +
+        '&select=id&limit=1'
+      );
+
+      if (!existing.ok) {
+        return json(502, {
+          error: 'publication_check_failed'
+        });
+      }
+
+      if ((await existing.json()).length) {
+        return json(409, {
+          error: 'article_already_published'
+        });
+      }
+
+      const authors = submission.authors_text
         .split(/[,;\n]/)
-        .map(x => x.trim())
+        .map(value => value.trim())
         .filter(Boolean);
 
-      const ins = await rest('/rest/v1/journal_articles', {
-        method: 'POST',
-        headers: {
-          Prefer: 'return=representation'
-        },
-        body: JSON.stringify({
-          submission_id: sub.id,
-          journal_code: sub.journal_code,
-          title: sub.title,
-          authors,
-          abstract: sub.abstract,
-          keywords: sub.keywords,
-          doi: b.doi || null,
-          article_url: b.article_url || null,
-          status: 'published',
-          published_at: new Date().toISOString()
-        })
-      });
+      const insert = await rest(
+        '/rest/v1/journal_articles',
+        {
+          method: 'POST',
+          headers: {
+            Prefer: 'return=representation'
+          },
+          body: JSON.stringify({
+            submission_id: submission.id,
+            journal_code: submission.journal_code,
+            title: submission.title,
+            authors,
+            abstract: submission.abstract,
+            keywords: submission.keywords,
+            doi,
+            article_url: articleUrl,
+            status: 'published',
+            published_at: new Date().toISOString()
+          })
+        }
+      );
 
-      if (!ins.ok) {
+      if (!insert.ok) {
         return json(502, {
           error: 'article_publication_failed'
         });
       }
 
-      const article = (await ins.json())[0];
+      const articles = await insert.json();
+
+      if (!articles.length) {
+        return json(502, {
+          error: 'publication_confirmation_failed'
+        });
+      }
 
       const update = await rest(
-        `/rest/v1/journal_submissions?id=eq.${encodeURIComponent(sub.id)}`,
+        '/rest/v1/journal_submissions' +
+        '?id=eq.' + encodeURIComponent(submission.id) +
+        '&status=eq.accepted',
         {
           method: 'PATCH',
+          headers: {
+            Prefer: 'return=representation'
+          },
           body: JSON.stringify({
             status: 'published',
             updated_at: new Date().toISOString()
@@ -620,21 +1006,26 @@ exports.handler = async (event) => {
 
       return json(201, {
         ok: true,
-        article
+        article: articles[0]
       });
     }
 
-    // 9. EDITORIAL DECISION
+    /*
+     * 9. EDITORIAL DECISION
+     */
     if (action === 'decision') {
+
+      const allowedDecisions = [
+        'editorial_screening',
+        'under_review',
+        'revision',
+        'accepted',
+        'rejected'
+      ];
+
       if (
         typeof b.submission_id !== 'string' ||
-        ![
-          'editorial_screening',
-          'under_review',
-          'revision',
-          'accepted',
-          'rejected'
-        ].includes(b.decision) ||
+        !allowedDecisions.includes(b.decision) ||
         typeof b.note !== 'string' ||
         b.note.length > 3000
       ) {
@@ -643,45 +1034,45 @@ exports.handler = async (event) => {
         });
       }
 
-      const q = await rest(
-        `/rest/v1/journal_submissions?id=eq.${encodeURIComponent(b.submission_id)}&select=id,journal_code`
-      );
+      const submission = await getSubmission(b.submission_id);
 
-      if (!q.ok) {
-        return json(502, {
-          error: 'submission_lookup_failed'
-        });
-      }
-
-      const rows = await q.json();
-
-      if (!rows.length) {
+      if (!submission) {
         return json(404, {
           error: 'submission_not_found'
         });
       }
 
-      const sub = rows[0];
+      if (
+        ['published', 'withdrawn'].includes(submission.status)
+      ) {
+        return json(409, {
+          error: 'submission_is_closed'
+        });
+      }
 
       if (
-        !(await platformAdmin(user.id)) &&
-        !(await membership(
+        !await editorAccess(
           user.id,
-          sub.journal_code,
-          ['editor_in_chief', 'associate_editor', 'journal_admin']
-        ))
+          submission.journal_code
+        )
       ) {
         return json(403, {
           error: 'journal_editor_access_required'
         });
       }
 
-      const ins = await rest(
+      /*
+       * Log the editorial decision.
+       */
+      const insert = await rest(
         '/rest/v1/journal_editorial_decisions',
         {
           method: 'POST',
+          headers: {
+            Prefer: 'return=minimal'
+          },
           body: JSON.stringify({
-            submission_id: sub.id,
+            submission_id: submission.id,
             editor_id: user.id,
             decision: b.decision,
             decision_note: b.note
@@ -689,18 +1080,23 @@ exports.handler = async (event) => {
         }
       );
 
-      if (!ins.ok) {
+      if (!insert.ok) {
         return json(502, {
           error: 'decision_log_failed'
         });
       }
 
-      const upd = await rest(
-        `/rest/v1/journal_submissions?id=eq.${encodeURIComponent(sub.id)}`,
+      /*
+       * Update only if the submission still has its original status.
+       */
+      const update = await rest(
+        '/rest/v1/journal_submissions' +
+        '?id=eq.' + encodeURIComponent(submission.id) +
+        '&status=eq.' + encodeURIComponent(submission.status),
         {
           method: 'PATCH',
           headers: {
-            Prefer: 'return=minimal'
+            Prefer: 'return=representation'
           },
           body: JSON.stringify({
             status: b.decision,
@@ -709,22 +1105,42 @@ exports.handler = async (event) => {
         }
       );
 
-      if (!upd.ok) {
+      if (!update.ok) {
         return json(502, {
           error: 'decision_update_failed'
         });
       }
 
-      return json(200, { ok: true });
+      const updatedRows = await update.json();
+
+      if (!updatedRows.length) {
+        return json(409, {
+          error: 'submission_status_changed_retry'
+        });
+      }
+
+      return json(200, {
+        ok: true
+      });
     }
 
+    /*
+     * Unknown action.
+     */
     return json(400, {
       error: 'unknown_action'
     });
 
-  } catch (e) {
+  } catch (error) {
+
+    console.error(
+      'Journal API error:',
+      error?.message || error
+    );
+
     return json(502, {
       error: 'publishing_request_failed'
     });
+
   }
 };
