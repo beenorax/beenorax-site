@@ -28,7 +28,8 @@ button:disabled{opacity:.55;cursor:wait}
 .back{display:inline-block;margin-top:16px;color:#155b91;text-decoration:none;font-size:13px}
 .hidden{display:none!important}
 .small{font-size:11px}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="/asset/auth-config.js"></script></head><body><main class="card"><div class="brand">
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="/asset/auth-config.js"></script></head>
+<body><main class="card"><div class="brand">
 BEENORAX
 <small>ANALYTICS & CONSULTING</small>
 </div><div class="eyebrow">Secure workspace access</div><h1 id="heading">Welcome to Beenorax</h1><p>Register or sign in to access the Analytics Workspace. The main Beenorax website remains publicly accessible.</p><div class="tabs">
@@ -41,8 +42,8 @@ BEENORAX
 <input id="organization" autocomplete="organization" maxlength="160">
 
 <label for="requestedRole">Account type</label>
-<select id="requestedRole">
 
+<select id="requestedRole">
 <option value="general_user">General user</option>
 <option value="researcher">Researcher</option>
 <option value="student">Student</option>
@@ -71,32 +72,63 @@ let lastSyncedToken = '';
 
 const cfg = window.BEENORAX_AUTH_CONFIG || {};
 
-if (
-  !window.supabase ||
-  !cfg.supabaseUrl ||
-  cfg.supabaseUrl.includes('YOUR_PROJECT') ||
-  !cfg.supabaseAnonKey ||
-  cfg.supabaseAnonKey.includes('YOUR_')
-) {
-  $('status').textContent =
-    'Authentication setup is not complete. Please try again later.';
-
+function showSetupError(message) {
+  $('status').textContent = message;
   $('status').classList.add('error');
   $('submitBtn').disabled = true;
+}
+
+/*
+  Validate Supabase configuration.
+*/
+if (
+  !window.supabase ||
+  typeof window.supabase.createClient !== 'function'
+) {
+  showSetupError(
+    'Supabase authentication library failed to load. Please refresh or try again later.'
+  );
   return;
 }
 
-const sb = window.supabase.createClient(
-  cfg.supabaseUrl,
-  cfg.supabaseAnonKey,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
+if (
+  !cfg.supabaseUrl ||
+  !cfg.supabaseAnonKey ||
+  cfg.supabaseUrl.includes('YOUR_PROJECT') ||
+  cfg.supabaseAnonKey.includes('YOUR_')
+) {
+  showSetupError(
+    'Authentication configuration is incomplete. Please try again later.'
+  );
+  return;
+}
+
+let sb;
+
+try {
+
+  sb = window.supabase.createClient(
+    cfg.supabaseUrl,
+    cfg.supabaseAnonKey,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
     }
-  }
-);
+  );
+
+} catch (error) {
+
+  console.error('Supabase client initialization failed:', error);
+
+  showSetupError(
+    'Unable to initialize authentication. Please try again later.'
+  );
+
+  return;
+}
 
 function status(message, error = false) {
   $('status').textContent = message;
@@ -104,8 +136,8 @@ function status(message, error = false) {
 }
 
 /*
-  Securely synchronize the browser's Supabase session
-  with the HttpOnly workspace authentication cookie.
+  Synchronize Supabase session with the
+  HttpOnly workspace authentication cookie.
 */
 async function refreshWorkspaceCookie(session, force = false) {
 
@@ -128,6 +160,8 @@ async function refreshWorkspaceCookie(session, force = false) {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'same-origin',
+        cache: 'no-store',
         body: JSON.stringify({
           access_token: session.access_token
         })
@@ -135,6 +169,7 @@ async function refreshWorkspaceCookie(session, force = false) {
     );
 
     if (!response.ok) {
+
       console.error(
         'Workspace cookie synchronization failed:',
         response.status
@@ -161,15 +196,15 @@ async function refreshWorkspaceCookie(session, force = false) {
 }
 
 /*
-  Listen for Supabase authentication events.
-  Token refreshes automatically renew the workspace cookie.
+  Automatically synchronize session changes.
 */
 sb.auth.onAuthStateChange((event, session) => {
 
   if (
     event === 'SIGNED_IN' ||
     event === 'TOKEN_REFRESHED' ||
-    event === 'INITIAL_SESSION'
+    event === 'INITIAL_SESSION' ||
+    event === 'USER_UPDATED'
   ) {
 
     if (session) {
@@ -189,7 +224,7 @@ sb.auth.onAuthStateChange((event, session) => {
 });
 
 /*
-  Register and login interface.
+  Login and registration interface.
 */
 function setMode(next) {
 
@@ -232,8 +267,7 @@ function setMode(next) {
 }
 
 /*
-  Enter the protected workspace only after
-  the authentication cookie has been secured.
+  Enter workspace after cookie synchronization.
 */
 async function enterWorkspace(session) {
 
@@ -243,9 +277,11 @@ async function enterWorkspace(session) {
   );
 
   if (!secured) {
+
     throw new Error(
       'Your session could not be secured. Please try again.'
     );
+
   }
 
   const next = new URLSearchParams(
@@ -373,36 +409,47 @@ $('authForm').onsubmit = async event => {
 */
 $('forgotBtn').onclick = async () => {
 
-  const email = $('email').value.trim();
+  try {
 
-  if (!email) {
+    const email = $('email').value.trim();
 
-    status('Enter your email address first.', true);
+    if (!email) {
 
-    return;
+      status('Enter your email address first.', true);
 
-  }
+      return;
 
-  const { error } =
-    await sb.auth.resetPasswordForEmail(
-      email,
-      {
-        redirectTo:
-          location.origin + '/reset-password.html'
-      }
+    }
+
+    const { error } =
+      await sb.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo:
+            location.origin + '/reset-password.html'
+        }
+      );
+
+    status(
+      error
+        ? error.message
+        : 'If the address is registered, a password reset link has been sent.',
+      !!error
     );
 
-  status(
-    error
-      ? error.message
-      : 'If the address is registered, a password reset link has been sent.'
-  );
+  } catch (error) {
+
+    status(
+      error.message || 'Password recovery could not be completed.',
+      true
+    );
+
+  }
 
 };
 
 /*
-  Restore an existing session and synchronize
-  its cookie before opening the workspace.
+  Restore an existing session.
 */
 (async () => {
 
@@ -430,6 +477,8 @@ $('forgotBtn').onclick = async () => {
     }
 
   } catch (error) {
+
+    console.error('Session restoration failed:', error);
 
     status('Please log in to continue.', true);
 
