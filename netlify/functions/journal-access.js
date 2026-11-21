@@ -28,18 +28,16 @@ const getHeader = (headers, name) => {
 
 const isSameOrigin = event => {
   const origin = getHeader(event.headers, 'origin').trim();
+
   const host = (
     getHeader(event.headers, 'host') ||
     getHeader(event.headers, 'x-forwarded-host')
   ).split(',')[0].trim().toLowerCase();
 
-  // The request must come through one of the approved Beenorax domains.
   if (!host || !ALLOWED_HOSTS.has(host)) {
     return false;
   }
 
-  // Some same-origin GET requests do not include an Origin header.
-  // In that case, the approved Host header is used.
   if (!origin) {
     return true;
   }
@@ -63,15 +61,22 @@ const isSameOrigin = event => {
 };
 
 const supabaseGet = async path => {
-  const response = await fetch(`${base()}/rest/v1/${path}`, {
-    headers: {
-      apikey: service(),
-      Accept: 'application/json'
+  const response = await fetch(
+    `${base()}/rest/v1/${path}`,
+    {
+      headers: {
+        apikey: service(),
+        Accept: 'application/json'
+      }
     }
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Database request failed: ${response.status}`);
+    const details = await response.text();
+
+    throw new Error(
+      `Database request failed (${response.status}): ${details}`
+    );
   }
 
   return response.json();
@@ -79,11 +84,15 @@ const supabaseGet = async path => {
 
 exports.handler = async event => {
   if (event.httpMethod !== 'GET') {
-    return json(405, { error: 'Method not allowed.' });
+    return json(405, {
+      error: 'Method not allowed.'
+    });
   }
 
   if (!isSameOrigin(event)) {
-    return json(403, { error: 'Request origin not allowed.' });
+    return json(403, {
+      error: 'Request origin not allowed.'
+    });
   }
 
   if (!base() || !anon() || !service()) {
@@ -107,7 +116,11 @@ exports.handler = async event => {
     });
   }
 
+  let stage = 'Starting authentication';
+
   try {
+    stage = 'Verifying Supabase user session';
+
     const authResponse = await fetch(
       `${base()}/auth/v1/user`,
       {
@@ -134,10 +147,14 @@ exports.handler = async event => {
 
     const userId = encodeURIComponent(user.id);
 
+    stage = 'Loading user profile';
+
     const profileRows = await supabaseGet(
       `profiles?id=eq.${userId}` +
       `&select=id,full_name,organization,requested_role,role`
     );
+
+    stage = 'Loading journal memberships';
 
     const membershipRows = await supabaseGet(
       `journal_memberships?user_id=eq.${userId}` +
@@ -163,20 +180,15 @@ exports.handler = async event => {
     });
 
   } catch (error) {
-    console.error('Journal access error:', error);
-
-    return json(500, {
-      error: 'Unable to verify journal access.'
-    });
-  }
-};
-  } catch (error) {
     console.error('Journal access diagnostic:', {
+      stage,
       message: error.message
     });
 
     return json(500, {
       error: 'Unable to verify journal access.',
+      diagnostic_stage: stage,
       diagnostic_message: error.message
     });
   }
+};
