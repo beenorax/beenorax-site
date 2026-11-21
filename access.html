@@ -1,11 +1,455 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071f43"><title>Workspace Access | Beenorax</title><style>
-:root{--navy:#071f43;--blue:#155b91;--teal:#00a99a;--ink:#17283b;--muted:#64758a;--line:#dce5ed;--paper:#f4f7fa}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#edf4f8,#f7f9fb);font:15px/1.5 Arial,sans-serif;color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:20px}.card{width:min(100%,480px);background:white;border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:0 18px 55px #071f4312}.brand{font-weight:900;letter-spacing:.08em;color:var(--navy)}.brand small{display:block;font-size:10px;color:#6b8297;letter-spacing:.16em}.eyebrow{margin-top:24px;color:#008d83;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}h1{font-size:30px;color:var(--navy);line-height:1.15;margin:7px 0}p{color:var(--muted);font-size:13px}.tabs{display:flex;gap:8px;margin:22px 0}.tabs button{flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;background:#f7f9fb;color:var(--navy);font-weight:700;cursor:pointer}.tabs button.active{background:var(--navy);color:white}label{display:block;font-size:12px;font-weight:700;color:#42556a;margin:13px 0 5px}input,select{width:100%;padding:12px;border:1px solid #cbd7e1;border-radius:8px;font:inherit;background:#fff}button.primary{width:100%;border:0;border-radius:8px;background:var(--teal);color:#fff;font-weight:800;padding:13px;margin-top:18px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.muted-btn{border:0;background:none;color:#155b91;text-decoration:underline;cursor:pointer;padding:10px 0}.status{margin-top:12px;font-size:13px;min-height:20px;color:#08786f}.status.error{color:#b42318}.back{display:inline-block;margin-top:16px;color:#155b91;text-decoration:none;font-size:13px}.hidden{display:none!important}.small{font-size:11px}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="/asset/auth-config.js"></script></head><body><main class="card"><div class="brand">BEENORAX<small>ANALYTICS & CONSULTING</small></div><div class="eyebrow">Secure workspace access</div><h1 id="heading">Welcome to Beenorax</h1><p>Register or sign in to access the Analytics Workspace. The main Beenorax website remains publicly accessible.</p><div class="tabs"><button id="loginTab" class="active" type="button">Log in</button><button id="signupTab" type="button">Create account</button></div>
-<form id="authForm"><div id="signupFields" class="hidden"><label for="fullName">Full name</label><input id="fullName" autocomplete="name" maxlength="120"><label for="organization">Organisation (optional)</label><input id="organization" autocomplete="organization" maxlength="160"><label for="requestedRole">Account type</label><select id="requestedRole"><option value="general_user">General user</option><option value="researcher">Researcher</option><option value="student">Student</option><option value="business_analyst">Business analyst</option></select></div><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required maxlength="254"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required minlength="8"><button class="primary" id="submitBtn" type="submit">Log in</button></form><button class="muted-btn" id="forgotBtn" type="button">Forgot password?</button><div id="status" class="status" role="status"></div><a class="back" href="/">← Back to Beenorax website</a><p class="small">By creating an account, you agree to use the workspace responsibly. Do not upload identifiable patient data or confidential information without appropriate authorisation.</p></main>
-<script>
-(()=>{'use strict';const $=id=>document.getElementById(id);let mode='login';const cfg=window.BEENORAX_AUTH_CONFIG||{};if(!window.supabase||!cfg.supabaseUrl||cfg.supabaseUrl.includes('YOUR_PROJECT')||!cfg.supabaseAnonKey||cfg.supabaseAnonKey.includes('YOUR_')){$('status').textContent='Authentication setup is not complete. Please try again later.';$('status').classList.add('error');$('submitBtn').disabled=true;return}const sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});function status(t,error=false){$('status').textContent=t;$('status').classList.toggle('error',error)}function setMode(next){mode=next;$('loginTab').classList.toggle('active',mode==='login');$('signupTab').classList.toggle('active',mode==='signup');$('signupFields').classList.toggle('hidden',mode!=='signup');$('forgotBtn').classList.toggle('hidden',mode!=='login');$('submitBtn').textContent=mode==='login'?'Log in':'Create account';$('heading').textContent=mode==='login'?'Welcome back':'Create your account';$('password').autocomplete=mode==='login'?'current-password':'new-password';status('')}async function enterWorkspace(session){const r=await fetch('/.netlify/functions/auth-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:session.access_token})});if(!r.ok)throw new Error('Your session could not be secured. Please try again.');const next=new URLSearchParams(location.search).get('next');location.replace(next==='/workspace.html'?next:'/workspace.html')}
-$('loginTab').onclick=()=>setMode('login');$('signupTab').onclick=()=>setMode('signup');$('authForm').onsubmit=async e=>{e.preventDefault();$('submitBtn').disabled=true;try{const email=$('email').value.trim(),password=$('password').value;if(mode==='signup'){const fullName=$('fullName').value.trim();if(!fullName)throw new Error('Enter your full name.');const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+'/access.html?verified=1',data:{full_name:fullName,organization:$('organization').value.trim(),requested_role:$('requestedRole').value}}});if(error)throw error;if(data.session){await enterWorkspace(data.session)}else status('Registration received. Check your email and verify your address before logging in.')}else{const {data,error}=await sb.auth.signInWithPassword({email,password});if(error)throw error;if(!data.user?.email_confirmed_at){await sb.auth.signOut();throw new Error('Please verify your email address before logging in.')}await enterWorkspace(data.session)}}catch(err){status(err.message||'Unable to complete the request.',true)}finally{$('submitBtn').disabled=false}};
-$('forgotBtn').onclick=async()=>{const email=$('email').value.trim();if(!email){status('Enter your email address first.',true);return}const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/reset-password.html'});status(error?error.message:'If the address is registered, a password reset link has been sent.');};
-(async()=>{try{const {data}=await sb.auth.getSession();if(data.session){if(!data.session.user.email_confirmed_at){status('Please verify your email address before continuing.',true);return}await enterWorkspace(data.session)}}catch(e){status('Please log in to continue.',true)}})();if(new URLSearchParams(location.search).get('verified')==='1')status('Email verification received. You can now access the workspace.');})();
-</script></body></html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#071f43">
+<title>Workspace Access | Beenorax</title><style>
+:root{--navy:#071f43;--blue:#155b91;--teal:#00a99a;--ink:#17283b;--muted:#64758a;--line:#dce5ed;--paper:#f4f7fa}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#edf4f8,#f7f9fb);font:15px/1.5 Arial,sans-serif;color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:20px}
+.card{width:min(100%,480px);background:white;border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:0 18px 55px #071f4312}
+.brand{font-weight:900;letter-spacing:.08em;color:var(--navy)}
+.brand small{display:block;font-size:10px;color:#6b8297;letter-spacing:.16em}
+.eyebrow{margin-top:24px;color:#008d83;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+h1{font-size:30px;color:var(--navy);line-height:1.15;margin:7px 0}
+p{color:var(--muted);font-size:13px}
+.tabs{display:flex;gap:8px;margin:22px 0}
+.tabs button{flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;background:#f7f9fb;color:var(--navy);font-weight:700;cursor:pointer}
+.tabs button.active{background:var(--navy);color:white}
+label{display:block;font-size:12px;font-weight:700;color:#42556a;margin:13px 0 5px}
+input,select{width:100%;padding:12px;border:1px solid #cbd7e1;border-radius:8px;font:inherit;background:#fff}
+button.primary{width:100%;border:0;border-radius:8px;background:var(--teal);color:#fff;font-weight:800;padding:13px;margin-top:18px;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+.muted-btn{border:0;background:none;color:#155b91;text-decoration:underline;cursor:pointer;padding:10px 0}
+.status{margin-top:12px;font-size:13px;min-height:20px;color:#08786f}
+.status.error{color:#b42318}
+.back{display:inline-block;margin-top:16px;color:#155b91;text-decoration:none;font-size:13px}
+.hidden{display:none!important}
+.small{font-size:11px}
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="/asset/auth-config.js"></script></head><body><main class="card"><div class="brand">
+BEENORAX
+<small>ANALYTICS & CONSULTING</small>
+</div><div class="eyebrow">Secure workspace access</div><h1 id="heading">Welcome to Beenorax</h1><p>Register or sign in to access the Analytics Workspace. The main Beenorax website remains publicly accessible.</p><div class="tabs">
+<button id="loginTab" class="active" type="button">Log in</button>
+<button id="signupTab" type="button">Create account</button>
+</div><form id="authForm"><div id="signupFields" class="hidden"><label for="fullName">Full name</label>
+<input id="fullName" autocomplete="name" maxlength="120">
+
+<label for="organization">Organisation (optional)</label>
+<input id="organization" autocomplete="organization" maxlength="160">
+
+<label for="requestedRole">Account type</label>
+<select id="requestedRole">
+
+<option value="general_user">General user</option>
+<option value="researcher">Researcher</option>
+<option value="student">Student</option>
+<option value="business_analyst">Business analyst</option>
+</select></div><label for="email">Email address</label>
+<input id="email" type="email" autocomplete="email" required maxlength="254">
+
+<label for="password">Password</label>
+<input id="password" type="password" autocomplete="current-password" required minlength="8">
+
+<button class="primary" id="submitBtn" type="submit">Log in</button>
+
+</form><button class="muted-btn" id="forgotBtn" type="button">Forgot password?</button>
+
+<div id="status" class="status" role="status"></div><a class="back" href="/">← Back to Beenorax website</a>
+
+<p class="small">By creating an account, you agree to use the workspace responsibly. Do not upload identifiable patient data or confidential information without appropriate authorisation.</p></main><script>
+(() => {
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+let mode = 'login';
+let cookieSyncInProgress = false;
+let lastSyncedToken = '';
+
+const cfg = window.BEENORAX_AUTH_CONFIG || {};
+
+if (
+  !window.supabase ||
+  !cfg.supabaseUrl ||
+  cfg.supabaseUrl.includes('YOUR_PROJECT') ||
+  !cfg.supabaseAnonKey ||
+  cfg.supabaseAnonKey.includes('YOUR_')
+) {
+  $('status').textContent =
+    'Authentication setup is not complete. Please try again later.';
+
+  $('status').classList.add('error');
+  $('submitBtn').disabled = true;
+  return;
+}
+
+const sb = window.supabase.createClient(
+  cfg.supabaseUrl,
+  cfg.supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
+);
+
+function status(message, error = false) {
+  $('status').textContent = message;
+  $('status').classList.toggle('error', error);
+}
+
+/*
+  Securely synchronize the browser's Supabase session
+  with the HttpOnly workspace authentication cookie.
+*/
+async function refreshWorkspaceCookie(session, force = false) {
+
+  if (!session?.access_token) return false;
+
+  if (cookieSyncInProgress) return false;
+
+  if (!force && session.access_token === lastSyncedToken) {
+    return true;
+  }
+
+  cookieSyncInProgress = true;
+
+  try {
+
+    const response = await fetch(
+      '/.netlify/functions/auth-session',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          access_token: session.access_token
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        'Workspace cookie synchronization failed:',
+        response.status
+      );
+
+      return false;
+    }
+
+    lastSyncedToken = session.access_token;
+
+    return true;
+
+  } catch (error) {
+
+    console.error('Workspace session synchronization failed.');
+
+    return false;
+
+  } finally {
+
+    cookieSyncInProgress = false;
+
+  }
+}
+
+/*
+  Listen for Supabase authentication events.
+  Token refreshes automatically renew the workspace cookie.
+*/
+sb.auth.onAuthStateChange((event, session) => {
+
+  if (
+    event === 'SIGNED_IN' ||
+    event === 'TOKEN_REFRESHED' ||
+    event === 'INITIAL_SESSION'
+  ) {
+
+    if (session) {
+
+      setTimeout(() => {
+        refreshWorkspaceCookie(session);
+      }, 0);
+
+    }
+
+  }
+
+  if (event === 'SIGNED_OUT') {
+    lastSyncedToken = '';
+  }
+
+});
+
+/*
+  Register and login interface.
+*/
+function setMode(next) {
+
+  mode = next;
+
+  $('loginTab').classList.toggle(
+    'active',
+    mode === 'login'
+  );
+
+  $('signupTab').classList.toggle(
+    'active',
+    mode === 'signup'
+  );
+
+  $('signupFields').classList.toggle(
+    'hidden',
+    mode !== 'signup'
+  );
+
+  $('forgotBtn').classList.toggle(
+    'hidden',
+    mode !== 'login'
+  );
+
+  $('submitBtn').textContent =
+    mode === 'login' ? 'Log in' : 'Create account';
+
+  $('heading').textContent =
+    mode === 'login'
+      ? 'Welcome back'
+      : 'Create your account';
+
+  $('password').autocomplete =
+    mode === 'login'
+      ? 'current-password'
+      : 'new-password';
+
+  status('');
+}
+
+/*
+  Enter the protected workspace only after
+  the authentication cookie has been secured.
+*/
+async function enterWorkspace(session) {
+
+  const secured = await refreshWorkspaceCookie(
+    session,
+    true
+  );
+
+  if (!secured) {
+    throw new Error(
+      'Your session could not be secured. Please try again.'
+    );
+  }
+
+  const next = new URLSearchParams(
+    location.search
+  ).get('next');
+
+  location.replace(
+    next === '/workspace.html'
+      ? next
+      : '/workspace.html'
+  );
+
+}
+
+/*
+  Interface events.
+*/
+$('loginTab').onclick = () => setMode('login');
+
+$('signupTab').onclick = () => setMode('signup');
+
+/*
+  Registration and login.
+*/
+$('authForm').onsubmit = async event => {
+
+  event.preventDefault();
+
+  $('submitBtn').disabled = true;
+
+  try {
+
+    const email = $('email').value.trim();
+    const password = $('password').value;
+
+    if (mode === 'signup') {
+
+      const fullName = $('fullName').value.trim();
+
+      if (!fullName) {
+        throw new Error('Enter your full name.');
+      }
+
+      const { data, error } = await sb.auth.signUp({
+
+        email,
+        password,
+
+        options: {
+
+          emailRedirectTo:
+            location.origin + '/access.html?verified=1',
+
+          data: {
+
+            full_name: fullName,
+
+            organization:
+              $('organization').value.trim(),
+
+            requested_role:
+              $('requestedRole').value
+
+          }
+
+        }
+
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+
+        await enterWorkspace(data.session);
+
+      } else {
+
+        status(
+          'Registration received. Check your email and verify your address before logging in.'
+        );
+
+      }
+
+    } else {
+
+      const { data, error } =
+        await sb.auth.signInWithPassword({
+          email,
+          password
+        });
+
+      if (error) throw error;
+
+      if (!data.user?.email_confirmed_at) {
+
+        await sb.auth.signOut();
+
+        throw new Error(
+          'Please verify your email address before logging in.'
+        );
+
+      }
+
+      await enterWorkspace(data.session);
+
+    }
+
+  } catch (error) {
+
+    status(
+      error.message || 'Unable to complete the request.',
+      true
+    );
+
+  } finally {
+
+    $('submitBtn').disabled = false;
+
+  }
+
+};
+
+/*
+  Password recovery.
+*/
+$('forgotBtn').onclick = async () => {
+
+  const email = $('email').value.trim();
+
+  if (!email) {
+
+    status('Enter your email address first.', true);
+
+    return;
+
+  }
+
+  const { error } =
+    await sb.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo:
+          location.origin + '/reset-password.html'
+      }
+    );
+
+  status(
+    error
+      ? error.message
+      : 'If the address is registered, a password reset link has been sent.'
+  );
+
+};
+
+/*
+  Restore an existing session and synchronize
+  its cookie before opening the workspace.
+*/
+(async () => {
+
+  try {
+
+    const { data, error } = await sb.auth.getSession();
+
+    if (error) throw error;
+
+    if (data.session) {
+
+      if (!data.session.user.email_confirmed_at) {
+
+        status(
+          'Please verify your email address before continuing.',
+          true
+        );
+
+        return;
+
+      }
+
+      await enterWorkspace(data.session);
+
+    }
+
+  } catch (error) {
+
+    status('Please log in to continue.', true);
+
+  }
+
+})();
+
+/*
+  Email verification confirmation.
+*/
+if (
+  new URLSearchParams(location.search).get('verified') === '1'
+) {
+
+  status(
+    'Email verification received. You can now access the workspace.'
+  );
+
+}
+
+})();
+</script></body>
+</html>
