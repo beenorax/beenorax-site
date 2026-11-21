@@ -370,9 +370,386 @@ $('benaAiSend').addEventListener('click',()=>send());$('benaAiPrompt').addEventL
 </script>
 
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="/asset/auth-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/asset/auth-config.js"></script>
 <script>
-(()=>{'use strict';const cfg=window.BEENORAX_AUTH_CONFIG||{};if(!window.supabase||!cfg.supabaseUrl||!cfg.supabaseAnonKey||cfg.supabaseUrl.includes('YOUR_PROJECT')){location.replace('/access.html');return}const sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true}});const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let session=null;async function syncCookie(){const r=await fetch('/.netlify/functions/auth-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:session.access_token})});if(!r.ok)throw new Error('Session could not be refreshed')}async function api(method='GET',body){const r=await fetch('/.netlify/functions/admin-users',{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:body?JSON.stringify(body):undefined});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Administrator request failed');return d}async function loadUsers(){ $('adminStatus').textContent='Loading registered accounts…';try{const data=await api();const rows=data.users||[];if(!rows.length){$('adminUsers').innerHTML='<p class="small">No registered users found.</p>'}else{$('adminUsers').innerHTML='<table class="admin-table"><thead><tr><th>Email</th><th>Name</th><th>Organisation</th><th>Verified</th><th>Role</th><th>Account status</th><th>Action</th></tr></thead><tbody>'+rows.map(u=>{const banned=!!u.bannedUntil&&new Date(u.bannedUntil)>new Date();return `<tr data-user="${esc(u.id)}"><td>${esc(u.email)}</td><td>${esc(u.full_name)}</td><td>${esc(u.organization)}</td><td>${u.emailConfirmed?'Yes':'No'}</td><td><select class="role-select"><option value="general_user" ${u.role==='general_user'?'selected':''}>General user</option><option value="researcher" ${u.role==='researcher'?'selected':''}>Researcher</option><option value="student" ${u.role==='student'?'selected':''}>Student</option><option value="business_analyst" ${u.role==='business_analyst'?'selected':''}>Business analyst</option><option value="admin" ${u.role==='admin'?'selected':''}>Administrator</option></select></td><td>${banned?'Suspended':'Active'}</td><td><button type="button" class="save-user" data-suspended="${!banned}">${banned?'Restore':'Save / Suspend'}</button></td></tr>`}).join('')+'</tbody></table>';$('adminUsers').querySelectorAll('.save-user').forEach(btn=>btn.addEventListener('click',async()=>{const tr=btn.closest('tr'),userId=tr.dataset.user,role=tr.querySelector('.role-select').value,suspended=btn.dataset.suspended==='true';btn.disabled=true;try{await api('PATCH',{userId,role,suspended});$('adminStatus').textContent='Account updated.';await loadUsers()}catch(e){$('adminStatus').textContent=e.message;btn.disabled=false}}))}$('adminStatus').textContent=`${rows.length} account(s) loaded. The list is limited to the latest 200 accounts.`}catch(e){$('adminStatus').textContent=e.message}}$('refreshUsers').addEventListener('click',loadUsers);$('signOutBtn').addEventListener('click',async()=>{try{await sb.auth.signOut()}finally{await fetch('/.netlify/functions/auth-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true})});location.replace('/access.html')}});(async()=>{try{const {data,error}=await sb.auth.getSession();if(error||!data.session)throw new Error('Please sign in to continue.');session=data.session;if(!session.user.email_confirmed_at)throw new Error('Verify your email address before accessing the workspace.');await syncCookie();const {data:profile,error:profileError}=await sb.from('profiles').select('full_name,role').eq('id',session.user.id).single();if(profileError||!profile)throw new Error('Your account profile is not ready. Please contact Beenorax support.');$('accountEmail').textContent=session.user.email+' · '+(profile.role||'general_user').replaceAll('_',' ');if(profile.role==='admin'){$('adminPanel').hidden=false;loadUsers()}const labels={public_health:'Public Health & Epidemiology',business:'Business Intelligence & Analytics',biomedical:'Biomedical Research & Data Analytics'};function selectEnvironment(div){if(!labels[div])return;window.BeenoraxDivision=div;sessionStorage.setItem('beenorax_division',div);$('divisionLabel').textContent='Selected environment: '+labels[div];$('environmentChooser').hidden=true;$('workspaceContent').hidden=false;$('module').value=div==='business'?'business':div==='public_health'?'public_health':'research';const elisa=div==='biomedical';$('elisaControls').style.display=elisa?'contents':'none';const opt=$('analysisMethod').querySelector('option[value=elisa]');if(opt)opt.hidden=!elisa;if(!elisa&&$('analysisMethod').value==='elisa')$('analysisMethod').value='correlation';$('biomedicalStudio').hidden=!elisa;$('analysisPanel').querySelector('p.small').textContent=elisa?'Biomedical research tools include ELISA 4PL calibration, common statistical tests and diagnostic/biomarker analysis. Map standards and unknown samples from the appropriate worksheets.':'Choose a method and map the variables for your selected environment. ELISA calibration is available in Biomedical Research & Data Analytics.'}document.querySelectorAll('[data-division]').forEach(b=>b.addEventListener('click',()=>selectEnvironment(b.dataset.division)));$('changeEnvironment').addEventListener('click',()=>{sessionStorage.removeItem('beenorax_division');$('workspaceContent').hidden=true;$('environmentChooser').hidden=false;window.BeenoraxDivision=''});const remembered=sessionStorage.getItem('beenorax_division');if(remembered)selectEnvironment(remembered)}catch(e){await sb.auth.signOut().catch(()=>{});location.replace('/access.html?reason='+encodeURIComponent(e.message))}})();})();
+(() => {
+  'use strict';
+
+  const cfg = window.BEENORAX_AUTH_CONFIG || {};
+  const $ = id => document.getElementById(id);
+
+  if (
+    !window.supabase ||
+    !cfg.supabaseUrl ||
+    !cfg.supabaseAnonKey ||
+    cfg.supabaseUrl.includes('YOUR_PROJECT') ||
+    cfg.supabaseAnonKey.includes('YOUR_')
+  ) {
+    location.replace('/access.html');
+    return;
+  }
+
+  const sb = window.supabase.createClient(
+    cfg.supabaseUrl,
+    cfg.supabaseAnonKey,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    }
+  );
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+
+  let session = null;
+  let lastSyncedToken = '';
+  let cookieSyncQueue = Promise.resolve();
+  let signingOut = false;
+
+  async function postSessionCookie(payload) {
+    const response = await fetch('/.netlify/functions/auth-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        payload.clear
+          ? 'The workspace cookie could not be cleared.'
+          : 'The workspace session could not be refreshed.'
+      );
+    }
+
+    return true;
+  }
+
+  function syncCookie(activeSession = session) {
+    if (!activeSession?.access_token) {
+      return Promise.reject(new Error('No active session is available.'));
+    }
+
+    const token = activeSession.access_token;
+    if (token === lastSyncedToken) return Promise.resolve(true);
+
+    const task = cookieSyncQueue.then(async () => {
+      if (token === lastSyncedToken) return true;
+
+      await postSessionCookie({ access_token: token });
+      lastSyncedToken = token;
+      return true;
+    });
+
+    cookieSyncQueue = task.catch(() => {});
+    return task;
+  }
+
+  async function clearWorkspaceCookie() {
+    lastSyncedToken = '';
+
+    const task = cookieSyncQueue.then(() =>
+      postSessionCookie({ clear: true })
+    );
+
+    cookieSyncQueue = task.catch(() => {});
+    return task;
+  }
+
+  /*
+    Keep the HttpOnly workspace cookie synchronized whenever
+    Supabase creates or refreshes the browser session.
+  */
+  sb.auth.onAuthStateChange((event, activeSession) => {
+    if (
+      event === 'SIGNED_IN' ||
+      event === 'TOKEN_REFRESHED' ||
+      event === 'INITIAL_SESSION' ||
+      event === 'USER_UPDATED'
+    ) {
+      if (activeSession?.access_token) {
+        session = activeSession;
+        setTimeout(() => {
+          syncCookie(activeSession).catch(error => {
+            console.error('Workspace session synchronization failed:', error);
+          });
+        }, 0);
+      }
+    }
+
+    if (event === 'SIGNED_OUT') {
+      session = null;
+      lastSyncedToken = '';
+
+      if (!signingOut) {
+        setTimeout(() => {
+          clearWorkspaceCookie().catch(error => {
+            console.error('Workspace cookie clearing failed:', error);
+          });
+        }, 0);
+      }
+    }
+  });
+
+  async function api(method = 'GET', body) {
+    if (!session?.access_token) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+
+    const response = await fetch('/.netlify/functions/admin-users', {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store'
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Administrator request failed.');
+    }
+
+    return data;
+  }
+
+  async function loadUsers() {
+    $('adminStatus').textContent = 'Loading registered accounts…';
+
+    try {
+      const data = await api();
+      const users = data.users || [];
+
+      if (!users.length) {
+        $('adminUsers').innerHTML =
+          '<p class="small">No registered users found.</p>';
+      } else {
+        $('adminUsers').innerHTML =
+          '<table class="admin-table">' +
+            '<thead><tr>' +
+              '<th>Email</th><th>Name</th><th>Organisation</th>' +
+              '<th>Verified</th><th>Role</th><th>Account status</th><th>Action</th>' +
+            '</tr></thead><tbody>' +
+            users.map(user => {
+              const banned = !!user.bannedUntil &&
+                new Date(user.bannedUntil) > new Date();
+
+              return `<tr data-user="${esc(user.id)}">
+                <td>${esc(user.email)}</td>
+                <td>${esc(user.full_name)}</td>
+                <td>${esc(user.organization)}</td>
+                <td>${user.emailConfirmed ? 'Yes' : 'No'}</td>
+                <td>
+                  <select class="role-select">
+                    <option value="general_user" ${user.role === 'general_user' ? 'selected' : ''}>General user</option>
+                    <option value="researcher" ${user.role === 'researcher' ? 'selected' : ''}>Researcher</option>
+                    <option value="student" ${user.role === 'student' ? 'selected' : ''}>Student</option>
+                    <option value="business_analyst" ${user.role === 'business_analyst' ? 'selected' : ''}>Business analyst</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrator</option>
+                  </select>
+                </td>
+                <td>${banned ? 'Suspended' : 'Active'}</td>
+                <td>
+                  <button type="button" class="save-user"
+                    data-suspended="${!banned}">
+                    ${banned ? 'Restore' : 'Save / Suspend'}
+                  </button>
+                </td>
+              </tr>`;
+            }).join('') +
+            '</tbody></table>';
+
+        $('adminUsers').querySelectorAll('.save-user').forEach(button => {
+          button.addEventListener('click', async () => {
+            const row = button.closest('tr');
+            const userId = row.dataset.user;
+            const role = row.querySelector('.role-select').value;
+            const suspended = button.dataset.suspended === 'true';
+
+            button.disabled = true;
+
+            try {
+              await api('PATCH', { userId, role, suspended });
+              $('adminStatus').textContent = 'Account updated.';
+              await loadUsers();
+            } catch (error) {
+              $('adminStatus').textContent = error.message;
+              button.disabled = false;
+            }
+          });
+        });
+      }
+
+      $('adminStatus').textContent =
+        `${users.length} account(s) loaded. The list is limited to the latest 200 accounts.`;
+    } catch (error) {
+      $('adminStatus').textContent = error.message;
+    }
+  }
+
+  $('refreshUsers').addEventListener('click', loadUsers);
+
+  /*
+    Sign out of Supabase, clear the HttpOnly cookie, and
+    redirect even if either network request encounters an error.
+  */
+  $('signOutBtn').addEventListener('click', async () => {
+    if (signingOut) return;
+
+    signingOut = true;
+    $('signOutBtn').disabled = true;
+    $('signOutBtn').textContent = 'Signing out…';
+
+    try {
+      const { error } = await sb.auth.signOut();
+      if (error) {
+        console.error('Supabase sign-out returned an error:', error.message);
+      }
+    } catch (error) {
+      console.error('Supabase sign-out failed:', error);
+    } finally {
+      session = null;
+      lastSyncedToken = '';
+
+      try {
+        await clearWorkspaceCookie();
+      } catch (error) {
+        console.error('Could not clear the workspace cookie:', error);
+      }
+
+      location.replace('/access.html');
+    }
+  });
+
+  (async () => {
+    try {
+      const { data, error } = await sb.auth.getSession();
+
+      if (error || !data.session) {
+        throw new Error('Please sign in to continue.');
+      }
+
+      session = data.session;
+
+      if (!session.user?.email_confirmed_at) {
+        throw new Error('Verify your email address before accessing the workspace.');
+      }
+
+      await syncCookie(session);
+
+      const { data: profile, error: profileError } = await sb
+        .from('profiles')
+        .select('full_name,role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error(
+          'Your account profile is not ready. Please contact Beenorax support.'
+        );
+      }
+
+      $('accountEmail').textContent =
+        session.user.email + ' · ' +
+        (profile.role || 'general_user').replaceAll('_', ' ');
+
+      if (profile.role === 'admin') {
+        $('adminPanel').hidden = false;
+        loadUsers();
+      }
+
+      const labels = {
+        public_health: 'Public Health & Epidemiology',
+        business: 'Business Intelligence & Analytics',
+        biomedical: 'Biomedical Research & Data Analytics'
+      };
+
+      function selectEnvironment(division) {
+        if (!labels[division]) return;
+
+        window.BeenoraxDivision = division;
+        sessionStorage.setItem('beenorax_division', division);
+        $('divisionLabel').textContent =
+          'Selected environment: ' + labels[division];
+        $('environmentChooser').hidden = true;
+        $('workspaceContent').hidden = false;
+
+        $('module').value =
+          division === 'business'
+            ? 'business'
+            : division === 'public_health'
+              ? 'public_health'
+              : 'research';
+
+        const isBiomedical = division === 'biomedical';
+        $('elisaControls').style.display =
+          isBiomedical ? 'contents' : 'none';
+
+        const elisaOption =
+          $('analysisMethod').querySelector('option[value="elisa"]');
+
+        if (elisaOption) elisaOption.hidden = !isBiomedical;
+
+        if (!isBiomedical && $('analysisMethod').value === 'elisa') {
+          $('analysisMethod').value = 'correlation';
+        }
+
+        $('biomedicalStudio').hidden = !isBiomedical;
+
+        $('analysisPanel').querySelector('p.small').textContent =
+          isBiomedical
+            ? 'Biomedical research tools include ELISA 4PL calibration, common statistical tests and diagnostic/biomarker analysis. Map standards and unknown samples from the appropriate worksheets.'
+            : 'Choose a method and map the variables for your selected environment. ELISA calibration is available in Biomedical Research & Data Analytics.';
+      }
+
+      document.querySelectorAll('[data-division]').forEach(button => {
+        button.addEventListener('click', () =>
+          selectEnvironment(button.dataset.division)
+        );
+      });
+
+      $('changeEnvironment').addEventListener('click', () => {
+        sessionStorage.removeItem('beenorax_division');
+        $('workspaceContent').hidden = true;
+        $('environmentChooser').hidden = false;
+        window.BeenoraxDivision = '';
+      });
+
+      const remembered = sessionStorage.getItem('beenorax_division');
+      if (remembered) selectEnvironment(remembered);
+
+    } catch (error) {
+      try {
+        await sb.auth.signOut();
+      } catch (_) {
+        // Continue to clear the workspace cookie and redirect.
+      }
+
+      session = null;
+      try {
+        await clearWorkspaceCookie();
+      } catch (clearError) {
+        console.error('Workspace cookie clearing failed:', clearError);
+      }
+
+      location.replace(
+        '/access.html?reason=' + encodeURIComponent(error.message)
+      );
+    }
+  })();
+})();
 </script>
 
-</body></html>
+</body>
+                                                                                                                                     </html>
