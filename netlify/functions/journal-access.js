@@ -13,27 +13,56 @@ const base = () =>
 const anon = () => process.env.SUPABASE_ANON_KEY || '';
 const service = () => process.env.SUPABASE_SECRET_KEY || '';
 
+const ALLOWED_HOSTS = new Set([
+  'beenoraax.netlify.app',
+  'beenoraxx.netlify.app'
+]);
+
 const getHeader = (headers, name) => {
   const key = Object.keys(headers || {}).find(
     item => item.toLowerCase() === name.toLowerCase()
   );
-  return key ? headers[key] : '';
+
+  return key ? String(headers[key] || '') : '';
 };
 
 const isSameOrigin = event => {
-  const origin = getHeader(event.headers, 'origin');
-  const host = getHeader(event.headers, 'host');
+  const origin = getHeader(event.headers, 'origin').trim();
+  const host = (
+    getHeader(event.headers, 'host') ||
+    getHeader(event.headers, 'x-forwarded-host')
+  ).split(',')[0].trim().toLowerCase();
 
-  if (!origin || !host) return false;
+  // The request must come through one of the approved Beenorax domains.
+  if (!host || !ALLOWED_HOSTS.has(host)) {
+    return false;
+  }
+
+  // Some same-origin GET requests do not include an Origin header.
+  // In that case, the approved Host header is used.
+  if (!origin) {
+    return true;
+  }
 
   try {
-    return new URL(origin).host === host;
+    const parsedOrigin = new URL(origin);
+
+    if (parsedOrigin.protocol !== 'https:') {
+      return false;
+    }
+
+    const originHost = parsedOrigin.host.toLowerCase();
+
+    return (
+      ALLOWED_HOSTS.has(originHost) &&
+      originHost === host
+    );
   } catch {
     return false;
   }
 };
 
-const supabaseGet = async (path) => {
+const supabaseGet = async path => {
   const response = await fetch(`${base()}/rest/v1/${path}`, {
     headers: {
       apikey: service(),
@@ -58,41 +87,60 @@ exports.handler = async event => {
   }
 
   if (!base() || !anon() || !service()) {
-    return json(500, { error: 'Server configuration is incomplete.' });
+    return json(500, {
+      error: 'Server configuration is incomplete.'
+    });
   }
 
-  const authorization = getHeader(event.headers, 'authorization');
-  const token = authorization.replace(/^Bearer\s+/i, '').trim();
+  const authorization = getHeader(
+    event.headers,
+    'authorization'
+  );
+
+  const token = authorization
+    .replace(/^Bearer\s+/i, '')
+    .trim();
 
   if (!token) {
-    return json(401, { error: 'Authentication required.' });
+    return json(401, {
+      error: 'Authentication required.'
+    });
   }
 
   try {
-    const authResponse = await fetch(`${base()}/auth/v1/user`, {
-      headers: {
-        apikey: anon(),
-        Authorization: `Bearer ${token}`
+    const authResponse = await fetch(
+      `${base()}/auth/v1/user`,
+      {
+        headers: {
+          apikey: anon(),
+          Authorization: `Bearer ${token}`
+        }
       }
-    });
+    );
 
     if (!authResponse.ok) {
-      return json(401, { error: 'Your session is invalid or expired.' });
+      return json(401, {
+        error: 'Your session is invalid or expired.'
+      });
     }
 
     const user = await authResponse.json();
 
     if (!user.id || !user.email_confirmed_at) {
-      return json(403, { error: 'Verified email is required.' });
+      return json(403, {
+        error: 'Verified email is required.'
+      });
     }
 
+    const userId = encodeURIComponent(user.id);
+
     const profileRows = await supabaseGet(
-      `profiles?id=eq.${encodeURIComponent(user.id)}` +
+      `profiles?id=eq.${userId}` +
       `&select=id,full_name,organization,requested_role,role`
     );
 
     const membershipRows = await supabaseGet(
-      `journal_memberships?user_id=eq.${encodeURIComponent(user.id)}` +
+      `journal_memberships?user_id=eq.${userId}` +
       `&active=eq.true` +
       `&select=id,user_id,journal_code,role,active`
     );
@@ -101,18 +149,22 @@ exports.handler = async event => {
 
     return json(200, {
       authenticated: true,
+
       user: {
         id: user.id,
         email: user.email
       },
+
       profile,
       memberships: membershipRows,
+
       access_pending: !profile ||
         (!profile.role && membershipRows.length === 0)
     });
 
   } catch (error) {
     console.error('Journal access error:', error);
+
     return json(500, {
       error: 'Unable to verify journal access.'
     });
