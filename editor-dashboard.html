@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editor Dashboard | Beenorax</title>
+<link rel="stylesheet" href="/asset/journal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/asset/auth-config.js"></script>
+<script defer src="/asset/journal-dashboard.js"></script>
+</head>
+<body data-dashboard="editor">
+<header class="topbar"><a class="brand" href="/journal.html">BEENORAX <span>JOURNALS</span></a><nav><a href="/journal.html">Journals</a><a href="/publishing-policies.html">Policies</a><button id="signOut" class="button button-light">Sign out</button></nav></header>
+<main class="shell">
+<section class="page-heading"><div><p class="eyebrow">EDITORIAL PORTAL</p><h1>Editor Dashboard</h1><p>Manage submissions within your authorised journal assignment.</p></div></section>
+<div id="notice" class="notice" role="status">Checking your account…</div>
+<section class="panel"><div class="panel-heading"><h2>Editorial queue</h2><button class="button button-outline" id="refresh">Refresh</button></div><div id="content" class="table-wrap"><p class="muted">Loading editorial queue…</p></div></section>
+</main><footer>Editorial access is limited to active journal memberships.</footer>
+</body></html>

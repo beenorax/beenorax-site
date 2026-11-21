@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Journal Administration | Beenorax</title>
+<link rel="stylesheet" href="/asset/journal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/asset/auth-config.js"></script>
+<script defer src="/asset/journal-dashboard.js"></script>
+</head>
+<body data-dashboard="admin">
+<header class="topbar"><a class="brand" href="/journal.html">BEENORAX <span>JOURNALS</span></a><nav><a href="/journal.html">Journals</a><a href="/publishing-policies.html">Policies</a><button id="signOut" class="button button-light">Sign out</button></nav></header>
+<main class="shell">
+<section class="page-heading"><div><p class="eyebrow">PLATFORM ADMINISTRATION</p><h1>Journal Administration</h1><p>Review user profiles and manage journal memberships.</p></div></section>
+<div id="notice" class="notice" role="status">Checking administrator access…</div>
+<section class="panel"><div class="panel-heading"><h2>Registered profiles</h2><button class="button button-outline" id="refresh">Refresh</button></div><div id="content" class="table-wrap"><p class="muted">Loading profiles…</p></div></section>
+</main><footer>Administrative actions are recorded by the backend and require administrator privileges.</footer>
+</body></html>

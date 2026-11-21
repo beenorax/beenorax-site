@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Author Dashboard | Beenorax</title>
+<link rel="stylesheet" href="/asset/journal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/asset/auth-config.js"></script>
+<script defer src="/asset/journal-dashboard.js"></script>
+</head>
+<body data-dashboard="author">
+<header class="topbar"><a class="brand" href="/journal.html">BEENORAX <span>JOURNALS</span></a><nav><a href="/journal.html">Journals</a><a href="/publishing-policies.html">Policies</a><button id="signOut" class="button button-light">Sign out</button></nav></header>
+<main class="shell">
+<section class="page-heading"><div><p class="eyebrow">AUTHOR PORTAL</p><h1>Author Dashboard</h1><p>Track your manuscripts and start a new submission.</p></div><a class="button" href="/manuscript.html">Submit a manuscript</a></section>
+<div id="notice" class="notice" role="status">Checking your account…</div>
+<section class="panel"><div class="panel-heading"><h2>My submissions</h2><button class="button button-outline" id="refresh">Refresh</button></div><div id="content" class="table-wrap"><p class="muted">Loading submissions…</p></div></section>
+</main><footer>© Beenorax Analytics &amp; Consulting</footer>
+</body></html>
