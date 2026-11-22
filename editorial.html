@@ -1,5 +1,588 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editorial Dashboard | Beenorax</title><style>
-:root{--navy:#071f43;--blue:#155b91;--teal:#00a99a;--ink:#17283b;--muted:#64758a;--line:#dce5ed;--paper:#f4f7fa}*{box-sizing:border-box}body{margin:0;background:#f5f8fb;color:var(--ink);font:15px/1.6 Inter,Arial,sans-serif}.top{background:#071f43;color:white;padding:18px max(22px,calc((100% - 1120px)/2));display:flex;justify-content:space-between;align-items:center;gap:15px}.brand{font-weight:900;letter-spacing:.1em;color:white;text-decoration:none}.brand small{display:block;font-size:10px;letter-spacing:.16em;color:#b9ccdc}.top nav{display:flex;gap:18px;flex-wrap:wrap}.top nav a{color:#e7f0f7;text-decoration:none;font-size:13px}.wrap{width:min(1120px,calc(100% - 36px));margin:auto}.hero{background:linear-gradient(125deg,#071f43,#155b91 65%,#087e7b);color:white;padding:62px 0}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#6ce1d3;font-weight:800}.hero h1{font-size:clamp(34px,5vw,54px);line-height:1.1;margin:10px 0}.hero p{max-width:760px;color:#d7e5f1}.btn{display:inline-block;background:#00a99a;color:white;border:0;border-radius:8px;padding:11px 16px;text-decoration:none;font-weight:800;cursor:pointer}.btn.alt{background:white;color:#071f43;border:1px solid #cbd7e1}.section{padding:38px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.card{background:white;border:1px solid var(--line);border-radius:15px;padding:24px;box-shadow:0 8px 28px #071f4309}.card h2{color:var(--navy);line-height:1.25}.tag{font-size:11px;color:#087d75;font-weight:800;text-transform:uppercase;letter-spacing:.12em}.muted{color:var(--muted)}.list{padding-left:20px}.foot{background:#071f43;color:#d4e0ea;padding:24px 0;margin-top:30px;font-size:12px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:block;font-size:12px;font-weight:800;margin:12px 0 5px}input,select,textarea{width:100%;padding:11px;border:1px solid #cbd7e1;border-radius:8px;font:inherit;background:white}textarea{min-height:120px;resize:vertical}.status{padding:10px 0;color:#087d75;min-height:24px}.status.err{color:#b42318}.hidden{display:none!important}.pill{display:inline-block;padding:4px 9px;border-radius:20px;background:#e7f6f4;color:#087d75;font-size:11px;font-weight:800}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;background:white}th,td{text-align:left;padding:11px;border-bottom:1px solid var(--line);font-size:13px}th{color:#52667b;background:#f4f7fa}.article{padding:16px 0;border-bottom:1px solid var(--line)}.article h3{margin:4px 0;color:var(--navy)}@media(max-width:720px){.grid,.formgrid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.hero{padding:42px 0}}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="/asset/auth-config.js"></script></head><body><header class="top"><a class="brand" href="/">BEENORAX<small>ANALYTICS &amp; CONSULTING</small></a><nav><a href="/">Home</a><a href="/workspace.html">Analytics Workspace</a><a href="/publications.html">Publications</a><a href="/access.html">Account</a><a href="/editorial.html">Editorial</a><a href="/reviewer.html">Reviewer</a></nav></header><main class="wrap section"><section class="card"><div class="tag">Restricted editorial access</div><h1>Editorial Dashboard</h1><p class="muted">Editors and reviewers can access only journals and manuscripts assigned to their account.</p><div id="status" class="status"></div><div id="queue"></div></section></main><footer class="foot"><div class="wrap">© Beenorax Analytics &amp; Consulting</div></footer><script>
-(()=>{const cfg=window.BEENORAX_AUTH_CONFIG||{},$=id=>document.getElementById(id);if(!window.supabase||!cfg.supabaseUrl||cfg.supabaseUrl.includes('YOUR_PROJECT')){$('status').textContent='Editorial service is not configured.';return}const sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);(async()=>{const {data}=await sb.auth.getSession();const session=data.session;if(!session||!session.user.email_confirmed_at){$('status').innerHTML='Please <a href="/access.html?next=/editorial.html">sign in</a> with your verified account.';return}async function call(action,body={}){const r=await fetch('/.netlify/functions/journal-api',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}try{const d=await call('editor_queue');$('status').textContent='Editorial access confirmed. Your assigned journal queue is shown below.';$('queue').innerHTML=d.submissions.length?d.submissions.map(s=>'<article class="article"><span class="pill">'+esc(s.status)+'</span><h3>'+esc(s.title)+'</h3><p class="muted">'+esc(s.journal_code.toUpperCase())+' · '+esc(s.reference_code)+'</p><p>'+esc(s.abstract||'')+'</p><p><a href="'+esc(s.download_url||'#')+'" target="_blank" rel="noopener">Download manuscript</a></p><div class="formgrid"><div><label>Editorial action</label><select id="act-'+s.id+'"><option value="under_review">Move to review</option><option value="revision">Request revision</option><option value="accepted">Accept</option><option value="rejected">Reject</option></select></div><div><label>Decision / notes</label><input id="note-'+s.id+'" maxlength="3000" placeholder="Decision letter or editorial notes"></div></div><div class="formgrid"><div><label>Assign reviewer</label><select id="reviewer-'+s.id+'"><option value="">Select appointed reviewer</option></select></div><div style="align-self:end"><button class="btn" data-assign="'+s.id+'">Assign reviewer</button></div></div><button class="btn" data-id="'+s.id+'">Save decision</button><div class="formgrid"><div><label>DOI (leave blank until assigned)</label><input id="doi-'+s.id+'" maxlength="200" placeholder="10.xxxx/xxxxx"></div><div><label>Public article URL (optional)</label><input id="url-'+s.id+'" maxlength="1000" placeholder="https://..."></div></div><button class="btn" data-publish="'+s.id+'">Publish accepted article</button></article>').join(''):'No manuscripts are currently assigned to your editorial role.';for(const s of d.submissions){try{const list=await call('list_reviewers',{journal_code:s.journal_code});const sel=$('reviewer-'+s.id);for(const rv of list.reviewers){const op=document.createElement('option');op.value=rv.id;op.textContent=rv.email;sel.appendChild(op)}}catch(_){}}$('queue').querySelectorAll('button[data-assign]').forEach(b=>b.onclick=async()=>{const id=b.dataset.assign,reviewer_id=$('reviewer-'+id).value;if(!reviewer_id){alert('Select a reviewer appointed to this journal.');return}try{await call('assign_reviewer',{submission_id:id,reviewer_id});b.textContent='Reviewer assigned';b.disabled=true}catch(e){alert(e.message)}});$('queue').querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.id,action=$('act-'+id).value,note=$('note-'+id).value;await call('decision',{submission_id:id,decision:action,note});b.textContent='Saved';b.disabled=true}catch(e){alert(e.message)}});$('queue').querySelectorAll('button[data-publish]').forEach(b=>b.onclick=async()=>{const id=b.dataset.publish;if(!confirm('Publish this accepted article to the public journal page?'))return;try{await call('publish_article',{submission_id:id,doi:$('doi-'+id).value.trim(),article_url:$('url-'+id).value.trim()});b.textContent='Published';b.disabled=true}catch(e){alert(e.message)}})}catch(e){$('status').textContent=e.message}})();function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}})();
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editorial Dashboard | Beenorax</title>
+
+<style>
+:root{
+--navy:#071f43;
+--blue:#155b91;
+--teal:#00a99a;
+--ink:#17283b;
+--muted:#64758a;
+--line:#dce5ed;
+--paper:#f4f7fa
+}
+*{box-sizing:border-box}
+body{
+margin:0;
+background:#f5f8fb;
+color:var(--ink);
+font:15px/1.6 Inter,Arial,sans-serif
+}
+.top{
+background:#071f43;
+color:white;
+padding:18px max(22px,calc((100% - 1120px)/2));
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:15px
+}
+.brand{
+font-weight:900;
+letter-spacing:.1em;
+color:white;
+text-decoration:none
+}
+.brand small{
+display:block;
+font-size:10px;
+letter-spacing:.16em;
+color:#b9ccdc
+}
+.top nav{
+display:flex;
+gap:18px;
+flex-wrap:wrap
+}
+.top nav a{
+color:#e7f0f7;
+text-decoration:none;
+font-size:13px
+}
+.wrap{
+width:min(1120px,calc(100% - 36px));
+margin:auto
+}
+.section{padding:38px 0}
+.card{
+background:white;
+border:1px solid var(--line);
+border-radius:15px;
+padding:24px;
+box-shadow:0 8px 28px #071f4309
+}
+.tag{
+font-size:11px;
+color:#087d75;
+font-weight:800;
+text-transform:uppercase;
+letter-spacing:.12em
+}
+.muted{color:var(--muted)}
+.foot{
+background:#071f43;
+color:#d4e0ea;
+padding:24px 0;
+margin-top:30px;
+font-size:12px
+}
+.formgrid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:14px
+}
+label{
+display:block;
+font-size:12px;
+font-weight:800;
+margin:12px 0 5px
+}
+input,select,textarea{
+width:100%;
+padding:11px;
+border:1px solid #cbd7e1;
+border-radius:8px;
+font:inherit;
+background:white
+}
+textarea{
+min-height:120px;
+resize:vertical
+}
+.btn{
+display:inline-block;
+background:#00a99a;
+color:white;
+border:0;
+border-radius:8px;
+padding:11px 16px;
+text-decoration:none;
+font-weight:800;
+cursor:pointer
+}
+.btn:disabled{
+opacity:.6;
+cursor:wait
+}
+.btn.alt{
+background:white;
+color:#071f43;
+border:1px solid #cbd7e1
+}
+.status{
+padding:10px 0;
+color:#087d75;
+min-height:24px
+}
+.status.err{color:#b42318}
+.pill{
+display:inline-block;
+padding:4px 9px;
+border-radius:20px;
+background:#e7f6f4;
+color:#087d75;
+font-size:11px;
+font-weight:800
+}
+.article{
+padding:16px 0;
+border-bottom:1px solid var(--line)
+}
+.article h3{
+margin:4px 0;
+color:var(--navy)
+}
+@media(max-width:720px){
+.formgrid{grid-template-columns:1fr}
+.top{
+align-items:flex-start;
+flex-direction:column
+}
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/asset/auth-config.js"></script>
+</head>
+
+<body>
+
+<header class="top">
+<a class="brand" href="/journal.html">
+BEENORAX
+<small>JOURNALS</small>
+</a>
+
+<nav>
+<a href="/journal.html">Journals</a>
+<a href="/publications.html">Publications</a>
+<a href="/publishing-policies.html">Policies</a>
+<a href="/journal-access.html">Journal Account</a>
+<a href="/reviewer-dashboard.html">Reviewer Portal</a>
+</nav>
+</header>
+
+<main class="wrap section">
+
+<section class="card">
+
+<div class="tag">Restricted editorial access</div>
+
+<h1>Editorial Dashboard</h1>
+
+<p class="muted">
+Editors can access only journals and manuscripts assigned
+to their authorised accounts.
+</p>
+
+<div id="status" class="status">
+Checking your editorial access...
+</div>
+
+<div id="queue"></div>
+
+</section>
+
+</main>
+
+<footer class="foot">
+<div class="wrap">
+© Beenorax Analytics &amp; Consulting
+</div>
+</footer>
+
+<script>
+(() => {
+'use strict';
+
+const cfg = window.BEENORAX_AUTH_CONFIG || {};
+
+const $ = id => document.getElementById(id);
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[c]));
+}
+
+if (
+  !window.supabase ||
+  !cfg.supabaseUrl ||
+  !cfg.supabaseAnonKey ||
+  cfg.supabaseUrl.includes('YOUR_PROJECT')
+) {
+  $('status').textContent =
+    'Editorial service is not configured.';
+  return;
+}
+
+const sb = window.supabase.createClient(
+  cfg.supabaseUrl,
+  cfg.supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
+);
+
+let session = null;
+
+async function call(action, body = {}) {
+
+  const response = await fetch(
+    '/.netlify/functions/journal-api',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({
+        action,
+        ...body
+      })
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data.error) {
+    throw new Error(
+      data.error || 'The editorial request failed.'
+    );
+  }
+
+  return data;
+}
+
+async function loadDashboard() {
+
+  const result = await call('editor_queue');
+
+  const submissions = Array.isArray(result.submissions)
+    ? result.submissions
+    : [];
+
+  $('status').textContent =
+    'Editorial access confirmed. Your assigned journal queue is shown below.';
+
+  if (!submissions.length) {
+    $('queue').innerHTML =
+      '<p class="muted">No manuscripts are currently assigned to your editorial role.</p>';
+    return;
+  }
+
+  $('queue').innerHTML = submissions.map(s => `
+    <article class="article">
+
+      <span class="pill">${esc(s.status)}</span>
+
+      <h3>${esc(s.title)}</h3>
+
+      <p class="muted">
+        ${esc(String(s.journal_code || '').toUpperCase())}
+        ·
+        ${esc(s.reference_code)}
+      </p>
+
+      <p>${esc(s.abstract || '')}</p>
+
+      <p>
+        ${
+          s.download_url
+          ? `<a href="${esc(s.download_url)}" target="_blank" rel="noopener">Download manuscript</a>`
+          : 'Manuscript file unavailable'
+        }
+      </p>
+
+      <div class="formgrid">
+
+        <div>
+          <label>Editorial action</label>
+
+          <select id="act-${esc(s.id)}">
+            <option value="under_review">Move to review</option>
+            <option value="revision">Request revision</option>
+            <option value="accepted">Accept</option>
+            <option value="rejected">Reject</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Decision / notes</label>
+
+          <input
+            id="note-${esc(s.id)}"
+            maxlength="3000"
+            placeholder="Decision letter or editorial notes">
+        </div>
+
+      </div>
+
+      <div class="formgrid">
+
+        <div>
+          <label>Assign reviewer</label>
+
+          <select id="reviewer-${esc(s.id)}">
+            <option value="">Select appointed reviewer</option>
+          </select>
+        </div>
+
+        <div style="align-self:end">
+          <button
+            class="btn"
+            type="button"
+            data-assign="${esc(s.id)}">
+            Assign reviewer
+          </button>
+        </div>
+
+      </div>
+
+      <button
+        class="btn"
+        type="button"
+        data-id="${esc(s.id)}">
+        Save decision
+      </button>
+
+      <div class="formgrid">
+
+        <div>
+          <label>DOI (leave blank until assigned)</label>
+
+          <input
+            id="doi-${esc(s.id)}"
+            maxlength="200"
+            placeholder="10.xxxx/xxxxx">
+        </div>
+
+        <div>
+          <label>Public article URL (optional)</label>
+
+          <input
+            id="url-${esc(s.id)}"
+            maxlength="1000"
+            placeholder="https://...">
+        </div>
+
+      </div>
+
+      <button
+        class="btn"
+        type="button"
+        data-publish="${esc(s.id)}">
+        Publish accepted article
+      </button>
+
+    </article>
+  `).join('');
+
+  for (const s of submissions) {
+
+    try {
+
+      const list = await call(
+        'list_reviewers',
+        {journal_code:s.journal_code}
+      );
+
+      const reviewers = Array.isArray(list.reviewers)
+        ? list.reviewers
+        : [];
+
+      const select = $('reviewer-' + s.id);
+
+      reviewers.forEach(rv => {
+
+        const option = document.createElement('option');
+
+        option.value = rv.id;
+        option.textContent = rv.email || rv.id;
+
+        select.appendChild(option);
+
+      });
+
+    } catch (error) {
+      console.error('Reviewer list unavailable:', error);
+    }
+
+  }
+
+  $('queue')
+    .querySelectorAll('button[data-assign]')
+    .forEach(button => {
+
+      button.onclick = async () => {
+
+        const id = button.dataset.assign;
+        const reviewerId = $('reviewer-' + id).value;
+
+        if (!reviewerId) {
+          alert('Select a reviewer appointed to this journal.');
+          return;
+        }
+
+        button.disabled = true;
+
+        try {
+
+          await call('assign_reviewer', {
+            submission_id:id,
+            reviewer_id:reviewerId
+          });
+
+          button.textContent = 'Reviewer assigned';
+
+        } catch (error) {
+
+          alert(error.message);
+          button.disabled = false;
+
+        }
+
+      };
+
+    });
+
+  $('queue')
+    .querySelectorAll('button[data-id]')
+    .forEach(button => {
+
+      button.onclick = async () => {
+
+        const id = button.dataset.id;
+
+        button.disabled = true;
+
+        try {
+
+          await call('decision', {
+            submission_id:id,
+            decision:$('act-' + id).value,
+            note:$('note-' + id).value
+          });
+
+          button.textContent = 'Saved';
+
+        } catch (error) {
+
+          alert(error.message);
+          button.disabled = false;
+
+        }
+
+      };
+
+    });
+
+  $('queue')
+    .querySelectorAll('button[data-publish]')
+    .forEach(button => {
+
+      button.onclick = async () => {
+
+        const id = button.dataset.publish;
+
+        if (!confirm(
+          'Publish this accepted article to the public journal page?'
+        )) return;
+
+        button.disabled = true;
+
+        try {
+
+          await call('publish_article', {
+            submission_id:id,
+            doi:$('doi-' + id).value.trim(),
+            article_url:$('url-' + id).value.trim()
+          });
+
+          button.textContent = 'Published';
+
+        } catch (error) {
+
+          alert(error.message);
+          button.disabled = false;
+
+        }
+
+      };
+
+    });
+
+}
+
+async function init() {
+
+  try {
+
+    const {data, error} = await sb.auth.getSession();
+
+    if (error) throw error;
+
+    session = data.session;
+
+    if (
+      !session ||
+      !session.user ||
+      !session.user.email_confirmed_at
+    ) {
+
+      $('status').innerHTML =
+        'Please <a href="/journal-access.html">sign in through Journal Access</a> with your verified account.';
+
+      return;
+    }
+
+    await loadDashboard();
+
+  } catch (error) {
+
+    console.error('Editorial dashboard error:', error);
+
+    $('status').textContent =
+      error.message || 'Unable to load editorial dashboard.';
+
+  }
+
+}
+
+sb.auth.onAuthStateChange((event, newSession) => {
+
+  if (event === 'SIGNED_OUT') {
+    location.replace('/journal-access.html');
+  }
+
+});
+
+init();
+
+})();
+</script>
+
+</body>
+  </html>
