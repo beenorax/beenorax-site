@@ -1,15 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Secure account access for Beenorax journals.">
-  <title>Journal Access | Beenorax</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/asset/auth-config.js"></script>
-
-  <style>
+  <title>Journal Access | Beenorax</title>  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>  <script src="/asset/auth-config.js"></script>  <style>
     :root {
       --navy: #10243a;
       --blue: #1769aa;
@@ -263,6 +257,13 @@
       font-size: .88rem;
     }
 
+    .role-notice {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+
     footer {
       padding: 24px 16px 32px;
       color: var(--muted);
@@ -271,117 +272,152 @@
     }
 
     @media (max-width: 600px) {
-      .header-inner { align-items: flex-start; flex-direction: column; }
+      .header-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
       main { margin-top: 28px; }
       .form-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: auto; }
     }
-  </style>
-</head>
-
-<body>
+  </style></head><body>
   <header>
     <div class="header-inner">
       <div class="brand">BEENORAX<span>.</span></div>
       <a class="header-link" href="/">Back to homepage</a>
     </div>
-  </header>
-
-  <main>
+  </header>  <main>
     <section class="intro">
       <h1>Journal Access</h1>
       <p>Sign in or create an account to access Beenorax journal services.</p>
-    </section>
+    </section><section class="card">
+  <div id="message" class="message" role="status" aria-live="polite"></div>
 
-    <section class="card">
-      <div id="message" class="message" role="status" aria-live="polite"></div>
+  <section id="authSection">
+    <div class="tabs" role="tablist" aria-label="Account access">
+      <button type="button" id="loginTab" class="tab active"
+        role="tab" aria-selected="true">Sign in</button>
 
-      <section id="authSection">
-        <div class="tabs" role="tablist" aria-label="Account access">
-          <button type="button" id="loginTab" class="tab active" role="tab" aria-selected="true">Sign in</button>
-          <button type="button" id="registerTab" class="tab" role="tab" aria-selected="false">Create account</button>
+      <button type="button" id="registerTab" class="tab"
+        role="tab" aria-selected="false">Create account</button>
+    </div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="loginEmail">Email address</label>
+        <input type="email" id="loginEmail"
+          autocomplete="email" required>
+      </div>
+
+      <div class="field">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword"
+          autocomplete="current-password" required>
+      </div>
+
+      <button type="submit" id="loginButton" class="primary">
+        Sign in
+      </button>
+
+      <div class="form-footer">
+        <span class="notice">
+          Use the email address linked to your account.
+        </span>
+
+        <button type="button" id="forgotButton" class="text-button">
+          Forgot password?
+        </button>
+      </div>
+    </form>
+
+    <form id="registerForm" class="hidden">
+      <div class="form-grid">
+
+        <div class="field full">
+          <label for="fullName">Full name</label>
+          <input type="text" id="fullName"
+            autocomplete="name" required>
         </div>
 
-        <form id="loginForm">
-          <div class="field">
-            <label for="loginEmail">Email address</label>
-            <input type="email" id="loginEmail" autocomplete="email" required>
-          </div>
-
-          <div class="field">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" required>
-          </div>
-
-          <button type="submit" id="loginButton" class="primary">Sign in</button>
-          <div class="form-footer">
-            <span class="notice">Use the email address linked to your account.</span>
-            <button type="button" id="forgotButton" class="text-button">Forgot password?</button>
-          </div>
-        </form>
-
-        <form id="registerForm" class="hidden">
-          <div class="form-grid">
-            <div class="field full">
-              <label for="fullName">Full name</label>
-              <input type="text" id="fullName" autocomplete="name" required>
-            </div>
-
-            <div class="field full">
-              <label for="organization">Institution or organization</label>
-              <input type="text" id="organization" autocomplete="organization" placeholder="Enter your institution or organization">
-            </div>
-
-            <div class="field full">
-              <label for="requestedRole">Account type requested</label>
-              <select id="requestedRole" required>
-                <option value="author">Author</option>
-                <option value="reviewer">Reviewer</option>
-                <option value="editor">Editor</option>
-              </select>
-            </div>
-
-            <div class="field full">
-              <label for="registerEmail">Email address</label>
-              <input type="email" id="registerEmail" autocomplete="email" required>
-            </div>
-
-            <div class="field full">
-              <label for="registerPassword">Create password</label>
-              <input type="password" id="registerPassword" autocomplete="new-password" minlength="8" required>
-            </div>
-          </div>
-
-          <button type="submit" id="registerButton" class="primary">Create account</button>
-          <p class="notice">After registration, check your email for a verification link before signing in.</p>
-        </form>
-      </section>
-
-      <section id="accountSection" class="hidden">
-        <div class="account-top">
-          <h2>Your account</h2>
-          <div>
-            <button type="button" id="refreshButton" class="secondary-button">Refresh</button>
-            <button type="button" id="logoutButton" class="secondary-button">Sign out</button>
-          </div>
+        <div class="field full">
+          <label for="organization">Institution or organization</label>
+          <input type="text" id="organization"
+            autocomplete="organization"
+            placeholder="Enter your institution or organization">
         </div>
 
-        <div id="accountMessage" class="message" role="status" aria-live="polite"></div>
-        <div id="accountDetails"></div>
-      </section>
-    </section>
-  </main>
+        <div class="field full">
+          <label for="requestedRole">Journal role requested</label>
 
-  <footer>
+          <select id="requestedRole" required>
+            <option value="author">Author</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="associate_editor">Associate Editor</option>
+            <option value="editor_in_chief">Editor-in-Chief</option>
+            <option value="journal_admin">Journal Admin</option>
+          </select>
+
+          <p class="role-notice">
+            Editorial and reviewer roles are subject to verification
+            and approval by Beenorax. Selecting a role does not
+            automatically grant access to restricted journal services.
+          </p>
+        </div>
+
+        <div class="field full">
+          <label for="registerEmail">Email address</label>
+          <input type="email" id="registerEmail"
+            autocomplete="email" required>
+        </div>
+
+        <div class="field full">
+          <label for="registerPassword">Create password</label>
+          <input type="password" id="registerPassword"
+            autocomplete="new-password" minlength="8" required>
+        </div>
+
+      </div>
+
+      <button type="submit" id="registerButton" class="primary">
+        Create account
+      </button>
+
+      <p class="notice">
+        After registration, check your email for a verification link
+        before signing in. Requested editorial and reviewer roles
+        require separate approval.
+      </p>
+    </form>
+  </section>
+
+  <section id="accountSection" class="hidden">
+    <div class="account-top">
+      <h2>Your account</h2>
+
+      <div>
+        <button type="button" id="refreshButton"
+          class="secondary-button">Refresh</button>
+
+        <button type="button" id="logoutButton"
+          class="secondary-button">Sign out</button>
+      </div>
+    </div>
+
+    <div id="accountMessage" class="message"
+      role="status" aria-live="polite"></div>
+
+    <div id="accountDetails"></div>
+  </section>
+</section>
+
+  </main>  <footer>
     &copy; <span id="year"></span> Beenorax. Journal account services.
-  </footer>
-
-  <script>
+  </footer>  <script>
 (() => {
   'use strict';
 
   const config = window.BEENORAX_AUTH_CONFIG;
-
   const $ = id => document.getElementById(id);
 
   if (!config || !config.supabaseUrl || !config.supabaseAnonKey) {
@@ -395,7 +431,8 @@
   if (!window.supabase) {
     const message = $('message');
     message.className = 'message error';
-    message.textContent = 'Authentication service could not be loaded. Please refresh the page.';
+    message.textContent =
+      'Authentication service could not be loaded. Please refresh the page.';
     message.style.display = 'block';
     return;
   }
@@ -467,7 +504,9 @@
     }
 
     if (result.ok !== true) {
-      throw new Error('The server did not confirm session synchronisation.');
+      throw new Error(
+        'The server did not confirm session synchronisation.'
+      );
     }
 
     return result;
@@ -508,8 +547,8 @@
 
   function setBusy(value, buttonId) {
     busy = value;
-
     const button = $(buttonId);
+
     if (button) {
       button.disabled = value;
     }
@@ -523,10 +562,12 @@
 
     if (!session.user?.email_confirmed_at) {
       showAuth();
+
       showMessage(
         'Please verify your email address before accessing the journal portal.',
         'error'
       );
+
       return;
     }
 
@@ -601,7 +642,6 @@
       }
 
       $('accountDetails').innerHTML = html;
-
       lastLoadedToken = session.access_token;
 
       showAccountMessage(
@@ -613,12 +653,10 @@
       if (loadId !== accountLoadId) return;
 
       console.error('Journal account verification error:', error);
-
       showAccountMessage(error.message, 'error');
     }
   }
 
-  // Switch to sign-in
   $('loginTab').addEventListener('click', () => {
     $('loginForm').classList.remove('hidden');
     $('registerForm').classList.add('hidden');
@@ -626,16 +664,21 @@
     $('loginTab').classList.add('active');
     $('registerTab').classList.remove('active');
 
+    $('loginTab').setAttribute('aria-selected', 'true');
+    $('registerTab').setAttribute('aria-selected', 'false');
+
     $('message').style.display = 'none';
   });
 
-  // Switch to registration
   $('registerTab').addEventListener('click', () => {
     $('registerForm').classList.remove('hidden');
     $('loginForm').classList.add('hidden');
 
     $('registerTab').classList.add('active');
     $('loginTab').classList.remove('active');
+
+    $('registerTab').setAttribute('aria-selected', 'true');
+    $('loginTab').setAttribute('aria-selected', 'false');
 
     $('message').style.display = 'none';
   });
@@ -663,7 +706,6 @@
       }
 
       lastLoadedToken = null;
-
       await loadAccount(data.session);
 
     } catch (error) {
@@ -685,6 +727,8 @@
     showMessage('Creating your account...');
 
     try {
+      const requestedRole = $('requestedRole').value;
+
       const { data, error } = await sb.auth.signUp({
         email: $('registerEmail').value.trim(),
         password: $('registerPassword').value,
@@ -693,7 +737,7 @@
           data: {
             full_name: $('fullName').value.trim(),
             organization: $('organization').value.trim(),
-            requested_role: $('requestedRole').value
+            requested_role: requestedRole
           }
         }
       });
@@ -706,7 +750,7 @@
 
       } else {
         showMessage(
-          'Registration received. Check your email and click the verification link before signing in.',
+          'Registration received. Check your email and click the verification link before signing in. Requested editorial and reviewer roles require separate approval.',
           'success'
         );
 
@@ -792,7 +836,6 @@
       accountLoadId++;
 
       showAuth();
-
       showMessage('You have signed out successfully.', 'success');
 
     } catch (error) {
@@ -820,7 +863,10 @@
 
       if (event === 'TOKEN_REFRESHED') {
         syncCookie(session).catch(error => {
-          console.error('Session refresh synchronisation error:', error);
+          console.error(
+            'Session refresh synchronisation error:',
+            error
+          );
         });
 
       } else {
@@ -836,7 +882,12 @@
     if (error) {
       console.error('Session restoration error:', error);
       showAuth();
-      showMessage('Unable to restore your session. Please sign in again.', 'error');
+
+      showMessage(
+        'Unable to restore your session. Please sign in again.',
+        'error'
+      );
+
       return;
     }
 
@@ -847,23 +898,8 @@
     }
   });
 
+  $('year').textContent = new Date().getFullYear();
+
 })();
-  </script>
-
-  <script>
-    document.getElementById('year').textContent = new Date().getFullYear();
-    document.getElementById('loginTab').setAttribute('aria-selected', 'true');
-    document.getElementById('registerTab').setAttribute('aria-selected', 'false');
-
-    document.getElementById('loginTab').addEventListener('click', () => {
-      document.getElementById('loginTab').setAttribute('aria-selected', 'true');
-      document.getElementById('registerTab').setAttribute('aria-selected', 'false');
-    });
-
-    document.getElementById('registerTab').addEventListener('click', () => {
-      document.getElementById('loginTab').setAttribute('aria-selected', 'false');
-      document.getElementById('registerTab').setAttribute('aria-selected', 'true');
-    });
-  </script>
-</body>
+  </script></body>
 </html>
