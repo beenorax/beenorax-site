@@ -1,50 +1,54 @@
-const out = (statusCode, data, extraHeaders = {}) => ({
-  statusCode,
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store',
-    ...extraHeaders
-  },
-  body: JSON.stringify(data)
-});
+function json(status, data, headers = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      ...headers
+    }
+  });
+}
 
-exports.handler = async (event) => {
-  const origin = event.headers?.origin;
-  const host = event.headers?.host;
+export async function onRequest(context) {
+  const { request, env } = context;
+
+  const origin = request.headers.get('Origin');
+  const host = request.headers.get('Host');
 
   if (origin && host) {
     try {
       if (new URL(origin).host !== host) {
-        return out(403, { error: 'origin_not_allowed' });
+        return json(403, { error: 'origin_not_allowed' });
       }
     } catch {
-      return out(403, { error: 'origin_not_allowed' });
+      return json(403, { error: 'origin_not_allowed' });
     }
   }
 
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
       headers: { 'Cache-Control': 'no-store' }
-    };
+    });
   }
 
-  if (event.httpMethod !== 'POST') {
-    return out(405, { error: 'method' });
+  if (request.method !== 'POST') {
+    return json(405, { error: 'method' });
   }
 
-  const cookieBase = 'Path=/; HttpOnly; Secure; SameSite=Lax';
+  const cookieBase =
+    'Path=/; HttpOnly; Secure; SameSite=Lax';
 
   let body;
 
   try {
-    body = JSON.parse(event.body || '{}');
+    body = await request.json();
   } catch {
-    return out(400, { error: 'bad_json' });
+    return json(400, { error: 'bad_json' });
   }
 
   if (body.clear === true) {
-    return out(
+    return json(
       200,
       { ok: true },
       {
@@ -60,14 +64,14 @@ exports.handler = async (event) => {
       : '';
 
   if (!token || token.length > 5000) {
-    return out(400, { error: 'missing_token' });
+    return json(400, { error: 'missing_token' });
   }
 
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_ANON_KEY;
+  const url = env.SUPABASE_URL;
+  const anon = env.SUPABASE_ANON_KEY;
 
   if (!url || !anon) {
-    return out(503, { error: 'auth_not_configured' });
+    return json(503, { error: 'auth_not_configured' });
   }
 
   try {
@@ -82,10 +86,10 @@ exports.handler = async (event) => {
     );
 
     if (!verify.ok) {
-      return out(401, { error: 'invalid_session' });
+      return json(401, { error: 'invalid_session' });
     }
 
-    return out(
+    return json(
       200,
       { ok: true },
       {
@@ -95,6 +99,6 @@ exports.handler = async (event) => {
     );
 
   } catch {
-    return out(503, { error: 'auth_unavailable' });
+    return json(503, { error: 'auth_unavailable' });
   }
-};
+}
