@@ -1,11 +1,12 @@
 <!doctype html>
-
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#071f43">
-<title>Workspace Access | Beenorax</title><style>
+<title>Workspace Access | Beenorax</title>
+
+<style>
 :root{--navy:#071f43;--blue:#155b91;--teal:#00a99a;--ink:#17283b;--muted:#64758a;--line:#dce5ed;--paper:#f4f7fa}
 *{box-sizing:border-box}
 body{margin:0;background:linear-gradient(135deg,#edf4f8,#f7f9fb);font:15px/1.5 Arial,sans-serif;color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:20px}
@@ -28,14 +29,36 @@ button:disabled{opacity:.55;cursor:wait}
 .back{display:inline-block;margin-top:16px;color:#155b91;text-decoration:none;font-size:13px}
 .hidden{display:none!important}
 .small{font-size:11px}
-</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="/asset/auth-config.js"></script></head>
-<body><main class="card"><div class="brand">
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/asset/auth-config.js"></script>
+</head>
+
+<body>
+<main class="card">
+
+<div class="brand">
 BEENORAX
 <small>ANALYTICS & CONSULTING</small>
-</div><div class="eyebrow">Secure workspace access</div><h1 id="heading">Welcome to Beenorax</h1><p>Register or sign in to access the Analytics Workspace. The main Beenorax website remains publicly accessible.</p><div class="tabs">
+</div>
+
+<div class="eyebrow">Secure workspace access</div>
+
+<h1 id="heading">Welcome to Beenorax</h1>
+
+<p>Register or sign in to access the Analytics Workspace. The main Beenorax website remains publicly accessible.</p>
+
+<div class="tabs">
 <button id="loginTab" class="active" type="button">Log in</button>
 <button id="signupTab" type="button">Create account</button>
-</div><form id="authForm"><div id="signupFields" class="hidden"><label for="fullName">Full name</label>
+</div>
+
+<form id="authForm">
+
+<div id="signupFields" class="hidden">
+
+<label for="fullName">Full name</label>
 <input id="fullName" autocomplete="name" maxlength="120">
 
 <label for="organization">Organisation (optional)</label>
@@ -48,7 +71,11 @@ BEENORAX
 <option value="researcher">Researcher</option>
 <option value="student">Student</option>
 <option value="business_analyst">Business analyst</option>
-</select></div><label for="email">Email address</label>
+</select>
+
+</div>
+
+<label for="email">Email address</label>
 <input id="email" type="email" autocomplete="email" required maxlength="254">
 
 <label for="password">Password</label>
@@ -56,11 +83,19 @@ BEENORAX
 
 <button class="primary" id="submitBtn" type="submit">Log in</button>
 
-</form><button class="muted-btn" id="forgotBtn" type="button">Forgot password?</button>
+</form>
 
-<div id="status" class="status" role="status"></div><a class="back" href="/">← Back to Beenorax website</a>
+<button class="muted-btn" id="forgotBtn" type="button">Forgot password?</button>
 
-<p class="small">By creating an account, you agree to use the workspace responsibly. Do not upload identifiable patient data or confidential information without appropriate authorisation.</p></main><script>
+<div id="status" class="status" role="status"></div>
+
+<a class="back" href="/">← Back to Beenorax website</a>
+
+<p class="small">By creating an account, you agree to use the workspace responsibly. Do not upload identifiable patient data or confidential information without appropriate authorisation.</p>
+
+</main>
+
+<script>
 (() => {
 'use strict';
 
@@ -138,6 +173,7 @@ function status(message, error = false) {
 /*
   Synchronize Supabase session with the
   HttpOnly workspace authentication cookie.
+  Cloudflare Pages Function endpoint.
 */
 async function refreshWorkspaceCookie(session, force = false) {
 
@@ -154,7 +190,7 @@ async function refreshWorkspaceCookie(session, force = false) {
   try {
 
     const response = await fetch(
-      '/.netlify/functions/auth-session',
+      '/api/auth-session',
       {
         method: 'POST',
         headers: {
@@ -500,5 +536,7 @@ if (
 }
 
 })();
-</script></body>
+</script>
+
+</body>
 </html>
